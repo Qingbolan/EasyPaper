@@ -25,6 +25,7 @@ export default function EditorPage() {
   } = useEditorStore()
 
   const [editorContent, setEditorContent] = useState("")
+  const [lastCompiledTime, setLastCompiledTime] = useState<string>("")
 
   // Redirect if no project is open
   useEffect(() => {
@@ -154,6 +155,15 @@ export default function EditorPage() {
         setPdfPath(result.pdf_path)
         console.log("PDF path set in store")
 
+        // Update last compiled time
+        const now = new Date()
+        const timeString = now.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+        setLastCompiledTime(timeString)
+
         // Create version commit for successful build
         try {
           const commitId = await versionCommit(
@@ -215,6 +225,18 @@ export default function EditorPage() {
     }
   }
 
+  // Toggle preview mode
+  const togglePreviewMode = () => {
+    setPreviewMode(previewMode === "katex" ? "pdf" : "katex")
+  }
+
+  // Get file name from active file path
+  const getFileName = () => {
+    if (!activeFile) return undefined
+    const parts = activeFile.split(/[/\\]/)
+    return parts[parts.length - 1]
+  }
+
   // Auto-compile when switching to PDF preview mode
   useEffect(() => {
     if (previewMode === "pdf" && !pdfPath && !isBuilding && projectDir) {
@@ -230,10 +252,7 @@ export default function EditorPage() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Build Panel with Project Title */}
-      <BuildPanel
-        onCompile={handleCompile}
-        onClean={handleClean}
-      />
+      <BuildPanel onClean={handleClean} />
 
       {/* Main Content with Splitter */}
       <div className="flex-1 overflow-hidden min-h-0">
@@ -265,6 +284,7 @@ export default function EditorPage() {
                     value={editorContent}
                     onChange={handleContentChange}
                     onSave={handleSave}
+                    fileName={getFileName()}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">

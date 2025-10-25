@@ -7,7 +7,8 @@ import {
   ZoomOutIcon,
   MaximizeIcon,
   MinimizeIcon,
-  RotateCwIcon
+  RotateCwIcon,
+  DownloadIcon
 } from "lucide-react"
 import { useTheme } from "@/lib/theme-context"
 import "react-pdf/dist/Page/AnnotationLayer.css"
@@ -138,6 +139,35 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
     setRotation(prev => (prev + 90) % 360)
   }
 
+  const handleDownload = async () => {
+    if (!pdfPath) return
+
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const { copyFile } = await import('@tauri-apps/plugin-fs')
+
+      // Get default file name from path
+      const fileName = pdfPath.split(/[/\\]/).pop() || 'document.pdf'
+
+      // Show save dialog
+      const savePath = await save({
+        defaultPath: fileName,
+        filters: [{
+          name: 'PDF',
+          extensions: ['pdf']
+        }]
+      })
+
+      if (savePath) {
+        // Copy file to selected location
+        await copyFile(pdfPath, savePath)
+        console.log('PDF downloaded to:', savePath)
+      }
+    } catch (error) {
+      console.error('Download failed:', error)
+    }
+  }
+
   if (!pdfPath) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -169,101 +199,43 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
       ref={containerRef}
       className={`flex flex-col h-full ${isFullscreen ? (isDark ? 'bg-black' : 'bg-gray-900') : (isDark ? 'bg-gray-950' : 'bg-gray-100')}`}
     >
-      {/* Toolbar */}
-      <div className={`flex items-center gap-2 p-3 border-b shrink-0 ${
-        isFullscreen
-          ? (isDark ? 'bg-black/90 border-gray-800' : 'bg-gray-900/90 border-gray-700')
-          : (isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200')
-      } ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-        {/* Page Navigation */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={previousPage}
-            disabled={pageNumber <= 1}
-            className={`p-2 border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              isDark
-                ? 'border-gray-700 hover:bg-gray-800'
-                : 'border-gray-300 hover:bg-gray-100'
-            }`}
-            title="Previous page"
-          >
-            <ChevronLeftIcon className="w-4 h-4" />
-          </button>
-          <span className="text-sm min-w-[100px] text-center font-medium">
-            Page {pageNumber} of {numPages}
-          </span>
-          <button
-            onClick={nextPage}
-            disabled={pageNumber >= numPages}
-            className={`p-2 border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              isDark
-                ? 'border-gray-700 hover:bg-gray-800'
-                : 'border-gray-300 hover:bg-gray-100'
-            }`}
-            title="Next page"
-          >
-            <ChevronRightIcon className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="w-px h-6 bg-border mx-2" />
-
+      {/* Top Toolbar - Controls */}
+      <div className="flex items-center justify-center gap-2 px-4 py-2 border-b shrink-0 bg-card border-border">
         {/* Zoom Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={zoomOut}
-            disabled={scale <= 0.5}
-            className={`p-2 border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              isDark
-                ? 'border-gray-700 hover:bg-gray-800'
-                : 'border-gray-300 hover:bg-gray-100'
-            }`}
-            title="Zoom out"
-          >
-            <ZoomOutIcon className="w-4 h-4" />
-          </button>
-          <span className="text-sm min-w-[60px] text-center font-medium">
-            {autoFit ? "Fit" : `${Math.round(scale * 100)}%`}
-          </span>
-          <button
-            onClick={zoomIn}
-            disabled={scale >= 3.0}
-            className={`p-2 border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              isDark
-                ? 'border-gray-700 hover:bg-gray-800'
-                : 'border-gray-300 hover:bg-gray-100'
-            }`}
-            title="Zoom in"
-          >
-            <ZoomInIcon className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={zoomOut}
+          disabled={scale <= 0.5}
+          className="p-2 border border-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent hover:text-accent-foreground text-foreground"
+          title="Zoom out"
+        >
+          <ZoomOutIcon className="w-4 h-4" />
+        </button>
+        <button
+          onClick={zoomIn}
+          disabled={scale >= 3.0}
+          className="p-2 border border-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent hover:text-accent-foreground text-foreground"
+          title="Zoom in"
+        >
+          <ZoomInIcon className="w-4 h-4" />
+        </button>
 
-        <div className={`w-px h-6 mx-2 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Rotation */}
         <button
           onClick={rotate}
-          className={`p-2 border rounded transition-colors ${
-            isDark
-              ? 'border-gray-700 hover:bg-gray-800'
-              : 'border-gray-300 hover:bg-gray-100'
-          }`}
+          className="p-2 border border-border rounded transition-colors hover:bg-accent hover:text-accent-foreground text-foreground"
           title="Rotate 90°"
         >
           <RotateCwIcon className="w-4 h-4" />
         </button>
 
-        <div className="flex-1" />
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Fullscreen Toggle */}
         <button
           onClick={toggleFullscreen}
-          className={`p-2 border rounded transition-colors ${
-            isDark
-              ? 'border-gray-700 hover:bg-gray-800'
-              : 'border-gray-300 hover:bg-gray-100'
-          }`}
+          className="p-2 border border-border rounded transition-colors hover:bg-accent hover:text-accent-foreground text-foreground"
           title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
         >
           {isFullscreen ? (
@@ -271,6 +243,17 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
           ) : (
             <MaximizeIcon className="w-4 h-4" />
           )}
+        </button>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Download */}
+        <button
+          onClick={handleDownload}
+          className="p-2 border border-border rounded transition-colors hover:bg-accent hover:text-accent-foreground text-foreground"
+          title="Download PDF"
+        >
+          <DownloadIcon className="w-4 h-4" />
         </button>
       </div>
 
@@ -289,7 +272,7 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
             </div>
           }
         >
-          <div className={`${isDark ? 'bg-white' : 'bg-white'} shadow-2xl`}>
+          <div className="bg-white shadow-2xl">
             <Page
               pageNumber={pageNumber}
               scale={autoFit ? undefined : scale}
@@ -307,6 +290,36 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
             />
           </div>
         </Document>
+      </div>
+
+      {/* Bottom Toolbar - Page Info */}
+      <div className="flex items-center justify-between px-4 py-2 border-t shrink-0 bg-card border-border text-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={previousPage}
+              disabled={pageNumber <= 1}
+              className="p-1.5 border border-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent hover:text-accent-foreground text-foreground"
+              title="Previous page"
+            >
+              <ChevronLeftIcon className="w-4 h-4" />
+            </button>
+            <span className="min-w-[100px] text-center font-medium text-foreground">
+              Page {pageNumber} of {numPages}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={pageNumber >= numPages}
+              className="p-1.5 border border-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent hover:text-accent-foreground text-foreground"
+              title="Next page"
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="text-muted-foreground">
+            {autoFit ? "Fit to page" : `${Math.round(scale * 100)}%`}
+          </div>
+        </div>
       </div>
     </div>
   )
