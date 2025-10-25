@@ -94,8 +94,9 @@ export default function App() {
       <AppLayout>
         <Routes>
           <Route path="/" element={<WelcomePage />} />
-          <Route path="/project/:papername" element={<EditorPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/easypaper/projects" element={<WelcomePage />} />
+          <Route path="/easypaper/project/:name" element={<EditorPage />} />
+          <Route path="/easypaper/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>

@@ -19,13 +19,13 @@ export function AppSidebar() {
       icon: Home,
     },
     {
-      name: t("nav.editor"),
-      href: "/editor",
+      name: t("nav.projects"),
+      href: "/easypaper/projects",
       icon: FileEdit,
     },
     {
       name: t("nav.settings"),
-      href: "/settings",
+      href: "/easypaper/settings",
       icon: SettingsIcon,
     },
   ]
@@ -70,7 +70,8 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto overscroll-y-contain">
         {navigation.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = pathname === item.href ||
+            (item.href === "/easypaper/projects" && pathname.startsWith("/easypaper/project/"))
           return (
             <Link
               key={item.name}

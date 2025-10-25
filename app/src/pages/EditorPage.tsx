@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Splitter } from "antd"
 import { useProjectStore, useEditorStore } from "@/store"
-import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo } from "@/ipc"
+import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo, versionInit, versionSave, versionCommit } from "@/ipc"
 import { MonacoEditor } from "@/modules/editor/MonacoEditor"
 import { KaTeXPreview } from "@/modules/preview/KaTeXPreview"
 import { PDFViewer } from "@/modules/preview/PDFViewer"
@@ -45,6 +45,15 @@ export default function EditorPage() {
         console.log("Loaded files:", files)
         setFiles(files)
 
+        // Initialize version control for the project
+        try {
+          await versionInit(projectDir)
+          console.log("Version control initialized")
+        } catch (error) {
+          console.warn("Version control not available:", error)
+          // Version control is optional, continue without it
+        }
+
         // Auto-open main.tex if it exists
         const mainTex = files.find((f) => f.name === "main.tex")
         if (mainTex && !mainTex.is_dir) {
@@ -83,11 +92,25 @@ export default function EditorPage() {
 
   // Handle save
   const handleSave = async () => {
-    if (!activeFile) return
+    if (!activeFile || !projectDir) return
 
     try {
+      // Write file to disk
       await fileWrite(activeFile, editorContent)
       console.log("File saved:", activeFile)
+
+      // Create version snapshot
+      try {
+        const commitId = await versionSave(projectDir, activeFile, editorContent)
+        console.log("Version snapshot created:", commitId)
+      } catch (error) {
+        console.warn("Version snapshot failed (version control not available):", error)
+        // Continue even if version control fails
+      }
+
+      // Mark file as clean
+      const { markFileDirty } = useEditorStore.getState()
+      markFileDirty(activeFile, false)
     } catch (error) {
       console.error("Failed to save file:", error)
     }
@@ -105,7 +128,16 @@ export default function EditorPage() {
     setBuilding(true)
 
     try {
-      // Save current file before compiling
+      // Save all dirty files before compiling
+      const { openFiles } = useEditorStore.getState()
+      for (const [path, file] of openFiles.entries()) {
+        if (file.isDirty) {
+          console.log("Saving dirty file:", path)
+          await fileWrite(path, file.content)
+        }
+      }
+
+      // Also save current file if it's been edited
       if (activeFile) {
         console.log("Saving active file:", activeFile)
         await fileWrite(activeFile, editorContent)
@@ -121,11 +153,40 @@ export default function EditorPage() {
         console.log("✅ Build successful! PDF path:", result.pdf_path)
         setPdfPath(result.pdf_path)
         console.log("PDF path set in store")
+
+        // Create version commit for successful build
+        try {
+          const commitId = await versionCommit(
+            projectDir,
+            `Build successful (${result.duration_ms}ms)`,
+            true
+          )
+          console.log("Version commit created:", commitId)
+        } catch (error) {
+          console.warn("Version commit failed (version control not available):", error)
+        }
       } else {
         console.log("❌ Build failed or no PDF generated")
         if (result.errors && result.errors.length > 0) {
           console.log("Errors:", result.errors)
         }
+
+        // Create version commit for failed build
+        try {
+          await versionCommit(
+            projectDir,
+            `Build failed (${result.errors?.length || 0} errors)`,
+            false
+          )
+        } catch (error) {
+          console.warn("Version commit failed (version control not available):", error)
+        }
+      }
+
+      // Mark all saved files as clean
+      const { markFileDirty } = useEditorStore.getState()
+      for (const path of openFiles.keys()) {
+        markFileDirty(path, false)
       }
     } catch (error) {
       console.error("=== Build error ===", error)

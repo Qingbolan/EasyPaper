@@ -1,7 +1,7 @@
-import { useState } from "react"
-import { useProjectStore } from "@/store"
+import { useMemo, useState } from "react"
+import { useProjectStore, useEditorStore } from "@/store"
 import { FileInfo, fileDelete, fileRename, createDir, fileWrite, fileList } from "@/ipc"
-import { FileIcon, FolderIcon, FolderOpenIcon, ChevronRightIcon, ChevronDownIcon, FilePlusIcon, FolderPlusIcon, RefreshCwIcon, Trash2Icon, Edit2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react"
+import { FileIcon, FolderIcon, FolderOpenIcon, FilePlusIcon, FolderPlusIcon, RefreshCwIcon, Trash2Icon, Edit2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react"
 import { Dropdown } from "antd"
 import type { MenuProps } from "antd"
 
@@ -11,17 +11,33 @@ interface FileTreeProps {
 
 interface TreeNode {
   file: FileInfo
+  // Normalized path with '/' separators for tree logic
+  path: string
   children: TreeNode[]
   depth: number
 }
 
 export function FileTree({ onFileSelect }: FileTreeProps) {
-  const { files, currentFile, projectDir, projectName, setFiles, setProjectName } = useProjectStore()
+  const { files, projectDir, projectName, setFiles, setProjectName } = useProjectStore()
+  const { activeFile } = useEditorStore()
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set([""]))
+  const [selectedFolder, setSelectedFolder] = useState<string>("") // Empty string means root
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [newName, setNewName] = useState("")
   const [isEditingProjectName, setIsEditingProjectName] = useState(false)
   const [editedProjectName, setEditedProjectName] = useState(projectName || "")
+  const [isCreatingFile, setIsCreatingFile] = useState(false)
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [newItemName, setNewItemName] = useState("")
+
+  // Derive the active file path relative to project root for highlighting
+  const activeRelPath = useMemo(() => {
+    if (!activeFile || !projectDir) return null as string | null
+    const normActive = activeFile.replace(/\\/g, "/")
+    const normProject = projectDir.replace(/\\/g, "/")
+    const prefix = `${normProject}/`
+    return normActive.startsWith(prefix) ? normActive.slice(prefix.length) : null
+  }, [activeFile, projectDir])
 
   // Refresh file list
   const refreshFiles = async () => {
@@ -54,36 +70,103 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
     setIsEditingProjectName(false)
   }
 
-  // Create new file
-  const handleNewFile = async () => {
-    if (!projectDir) return
-    const fileName = prompt("Enter file name (e.g., chapter1.tex):")
-    if (!fileName) return
+  // Start creating new file
+  const handleStartNewFile = (folderPath?: string) => {
+    setIsCreatingFile(true)
+    setIsCreatingFolder(false)
+    setNewItemName("")
+
+    // If folderPath is explicitly provided (from context menu), use it
+    if (folderPath !== undefined) {
+      setSelectedFolder(folderPath)
+      if (folderPath) {
+        setExpandedFolders(prev => new Set(prev).add(folderPath))
+      }
+    } else {
+      // From top button: use current selectedFolder and expand if needed
+      if (selectedFolder) {
+        setExpandedFolders(prev => new Set(prev).add(selectedFolder))
+      }
+    }
+  }
+
+  // Start creating new folder
+  const handleStartNewFolder = (folderPath?: string) => {
+    setIsCreatingFolder(true)
+    setIsCreatingFile(false)
+    setNewItemName("")
+
+    // If folderPath is explicitly provided (from context menu), use it
+    if (folderPath !== undefined) {
+      setSelectedFolder(folderPath)
+      if (folderPath) {
+        setExpandedFolders(prev => new Set(prev).add(folderPath))
+      }
+    } else {
+      // From top button: use current selectedFolder and expand if needed
+      if (selectedFolder) {
+        setExpandedFolders(prev => new Set(prev).add(selectedFolder))
+      }
+    }
+  }
+
+  // Confirm create file
+  const handleConfirmCreateFile = async () => {
+    if (!projectDir || !newItemName.trim()) return
 
     try {
-      const filePath = `${projectDir}/${fileName}`
+      const fileName = newItemName.trim()
+      // Create in selected folder
+      const basePath = selectedFolder ? `${projectDir}/${selectedFolder}` : projectDir
+      const filePath = `${basePath}/${fileName}`
+
       await fileWrite(filePath, "", true)
       await refreshFiles()
+
+      // Expand the folder if needed
+      if (selectedFolder) {
+        setExpandedFolders(prev => new Set(prev).add(selectedFolder))
+      }
+
+      setIsCreatingFile(false)
+      setNewItemName("")
     } catch (error) {
       console.error("Failed to create file:", error)
       alert(`Failed to create file: ${error}`)
     }
   }
 
-  // Create new folder
-  const handleNewFolder = async () => {
-    if (!projectDir) return
-    const folderName = prompt("Enter folder name:")
-    if (!folderName) return
+  // Confirm create folder
+  const handleConfirmCreateFolder = async () => {
+    if (!projectDir || !newItemName.trim()) return
 
     try {
-      const folderPath = `${projectDir}/${folderName}`
+      const folderName = newItemName.trim()
+      // Create in selected folder
+      const basePath = selectedFolder ? `${projectDir}/${selectedFolder}` : projectDir
+      const folderPath = `${basePath}/${folderName}`
+
       await createDir(folderPath)
       await refreshFiles()
+
+      // Expand the parent folder if needed
+      if (selectedFolder) {
+        setExpandedFolders(prev => new Set(prev).add(selectedFolder))
+      }
+
+      setIsCreatingFolder(false)
+      setNewItemName("")
     } catch (error) {
       console.error("Failed to create folder:", error)
       alert(`Failed to create folder: ${error}`)
     }
+  }
+
+  // Cancel create
+  const handleCancelCreate = () => {
+    setIsCreatingFile(false)
+    setIsCreatingFolder(false)
+    setNewItemName("")
   }
 
   // Delete file or folder
@@ -138,10 +221,42 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
     const tree: TreeNode[] = []
     const pathMap = new Map<string, TreeNode>()
 
-    // Filter visible files
-    const visibleFiles = fileList.filter(
-      (f) => f.is_dir || f.name.endsWith(".tex") || f.name.endsWith(".bib") || f.name.endsWith(".cls") || f.name.endsWith(".sty")
-    )
+    // Hidden file extensions (LaTeX temporary/build files)
+    const hiddenExtensions = [
+      '.aux', '.log', '.out', '.toc', '.lof', '.lot',
+      '.fls', '.fdb_latexmk', '.synctex.gz', '.bbl', '.blg',
+      '.run.xml', '.bcf', '.nav', '.snm', '.vrb',
+      '.xdv', '.synctex(busy)', '.pdfsync'
+    ]
+
+    // Hidden directories
+    const hiddenDirs = ['.git', 'node_modules', '__pycache__', '.DS_Store', '.easypaper']
+
+    // Filter out hidden files and LaTeX temporary files
+    const visibleFiles = fileList.filter((f) => {
+      // Hide files/folders inside hidden directories
+      const pathParts = f.path.split('/').filter(Boolean)
+      if (pathParts.some(part => hiddenDirs.includes(part))) {
+        return false
+      }
+
+      // Hide specific directories
+      if (f.is_dir && hiddenDirs.includes(f.name)) {
+        return false
+      }
+
+      // Hide files with hidden extensions
+      if (!f.is_dir && hiddenExtensions.some(ext => f.name.endsWith(ext))) {
+        return false
+      }
+
+      // Hide files starting with .
+      if (f.name.startsWith('.') && f.name !== '.gitignore') {
+        return false
+      }
+
+      return true
+    })
 
     // Sort: directories first, then alphabetically
     const sortedFiles = [...visibleFiles].sort((a, b) => {
@@ -150,20 +265,26 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
       return a.name.localeCompare(b.name)
     })
 
-    // Create nodes for all files
+    // Create nodes for all files (normalize path separators for cross-platform)
     sortedFiles.forEach((file) => {
+      const normPath = file.path.replace(/\\/g, "/")
+      const pathParts = normPath.split("/").filter(Boolean)
+      const depth = pathParts.length - 1
+
       const node: TreeNode = {
         file,
+        path: normPath,
         children: [],
-        depth: file.path.split("/").filter(Boolean).length - 1
+        depth,
       }
-      pathMap.set(file.path, node)
+      pathMap.set(normPath, node)
     })
 
     // Build parent-child relationships
     sortedFiles.forEach((file) => {
-      const node = pathMap.get(file.path)!
-      const pathParts = file.path.split("/").filter(Boolean)
+      const normPath = file.path.replace(/\\/g, "/")
+      const node = pathMap.get(normPath)!
+      const pathParts = normPath.split("/").filter(Boolean)
 
       if (pathParts.length === 1) {
         // Root level file
@@ -198,26 +319,61 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
 
   const renderTree = (nodes: TreeNode[]): JSX.Element[] => {
     return nodes.map((node) => {
-      const { file, children, depth } = node
-      const isExpanded = expandedFolders.has(file.path)
-      const isActive = currentFile === file.path
-      const hasChildren = children.length > 0
-      const isRenaming = renamingPath === file.path
+      const { file, children, depth, path } = node
+      const isExpanded = expandedFolders.has(path)
+      const isActive = !file.is_dir && activeRelPath === path
+      const isFolderSelected = file.is_dir && selectedFolder === path
+      // Check if currently creating in this folder
+      const isCreatingInThisFolder = (isCreatingFile || isCreatingFolder) && selectedFolder === path
+      // Show children indicator if folder has any children (files or folders) OR if we're creating in it
+      const hasChildren = children.length > 0 || isCreatingInThisFolder
+      const isRenaming = renamingPath === path
 
       // Context menu items
-      const menuItems: MenuProps['items'] = [
+      const menuItems: MenuProps['items'] = file.is_dir ? [
+        {
+          key: 'newFile',
+          label: 'New File',
+          icon: <FilePlusIcon className="w-3.5 h-3.5" />,
+          onClick: () => {
+            handleStartNewFile(path)
+          },
+        },
+        {
+          key: 'newFolder',
+          label: 'New Folder',
+          icon: <FolderPlusIcon className="w-3.5 h-3.5" />,
+          onClick: () => {
+            handleStartNewFolder(path)
+          },
+        },
+        { type: 'divider' as const },
         {
           key: 'rename',
           label: 'Rename',
           icon: <Edit2Icon className="w-3.5 h-3.5" />,
-          onClick: () => handleStartRename(file.path, file.name),
+          onClick: () => handleStartRename(path, file.name),
         },
         {
           key: 'delete',
           label: 'Delete',
           icon: <Trash2Icon className="w-3.5 h-3.5" />,
           danger: true,
-          onClick: () => handleDelete(file.path, file.name),
+          onClick: () => handleDelete(path, file.name),
+        },
+      ] : [
+        {
+          key: 'rename',
+          label: 'Rename',
+          icon: <Edit2Icon className="w-3.5 h-3.5" />,
+          onClick: () => handleStartRename(path, file.name),
+        },
+        {
+          key: 'delete',
+          label: 'Delete',
+          icon: <Trash2Icon className="w-3.5 h-3.5" />,
+          danger: true,
+          onClick: () => handleDelete(path, file.name),
         },
       ]
 
@@ -225,44 +381,40 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
         <div
           onClick={() => {
             if (isRenaming) return
-            if (file.is_dir && hasChildren) {
-              toggleFolder(file.path)
-            } else if (!file.is_dir) {
+            if (file.is_dir) {
+              // Select the folder
+              setSelectedFolder(path)
+              // Toggle expansion if it has children
+              if (hasChildren) {
+                toggleFolder(path)
+              }
+            } else {
+              // Select file and clear folder selection
+              setSelectedFolder("")
               onFileSelect(file)
             }
           }}
           className={`
-            flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+            flex items-center px-2.5 py-1.5 rounded-lg
             transition-all
-            ${!file.is_dir || hasChildren ? "cursor-pointer" : "cursor-default"}
+            cursor-pointer
             ${
-              isActive
+              isActive || isFolderSelected
                 ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-l-2 border-cyan-500"
                 : "hover:bg-accent/50 text-foreground border-l-2 border-transparent"
             }
           `}
           style={{ paddingLeft: `${depth * 16 + 10}px` }}
         >
-          {file.is_dir && hasChildren ? (
-            <span className="flex-shrink-0">
-              {isExpanded ? (
-                <ChevronDownIcon className="w-3.5 h-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronRightIcon className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </span>
-          ) : (
-            <span className="w-3.5" />
-          )}
-
+          {/* Folder icon - shows open/closed state */}
           {file.is_dir ? (
-            isExpanded && hasChildren ? (
-              <FolderOpenIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+            isExpanded || isFolderSelected || isCreatingInThisFolder ? (
+              <FolderOpenIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
             ) : (
-              <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+              <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
             )
           ) : (
-            <FileIcon className="w-4 h-4 flex-shrink-0" />
+            <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
           )}
 
           {isRenaming ? (
@@ -272,12 +424,12 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  handleRename(file.path)
+                  handleRename(path)
                 } else if (e.key === "Escape") {
                   handleCancelRename()
                 }
               }}
-              onBlur={() => handleRename(file.path)}
+              onBlur={() => handleRename(path)}
               className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
               autoFocus
               onClick={(e) => e.stopPropagation()}
@@ -289,13 +441,77 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
       )
 
       return (
-        <div key={file.path}>
+        <div key={path}>
           <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
             {fileElement}
           </Dropdown>
 
-          {file.is_dir && isExpanded && hasChildren && (
-            <div>{renderTree(children)}</div>
+          {/* Show children and/or new item input for this folder */}
+          {file.is_dir && (isExpanded || ((isCreatingFile || isCreatingFolder) && selectedFolder === path)) && (
+            <div>
+              {/* New item input - show when creating in this folder */}
+              {(isCreatingFile || isCreatingFolder) && selectedFolder === path && (
+                <div
+                  className="flex items-center px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border-l-2 border-cyan-500"
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 10}px` }}
+                >
+                  {isCreatingFolder ? (
+                    <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
+                  ) : (
+                    <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
+                  )}
+                  <input
+                    type="text"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        if (isCreatingFile) {
+                          handleConfirmCreateFile()
+                        } else {
+                          handleConfirmCreateFolder()
+                        }
+                      } else if (e.key === "Escape") {
+                        e.preventDefault()
+                        handleCancelCreate()
+                      }
+                    }}
+                    placeholder={isCreatingFile ? "file.tex" : "folder-name"}
+                    className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mr-1"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isCreatingFile) {
+                        handleConfirmCreateFile()
+                      } else {
+                        handleConfirmCreateFolder()
+                      }
+                    }}
+                    className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0 mr-0.5"
+                    title="Create (Enter)"
+                  >
+                    <CheckIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCancelCreate()
+                    }}
+                    className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded transition-colors flex-shrink-0"
+                    title="Cancel (Esc)"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Render children */}
+              {hasChildren && renderTree(children)}
+            </div>
           )}
         </div>
       )
@@ -307,7 +523,10 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
   return (
     <div className="file-tree h-full flex flex-col bg-card">
       {/* Header with action buttons */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 gap-2">
+      <div
+        className="flex items-center justify-between px-4 pt-4 pb-2 gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
         {isEditingProjectName ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
@@ -345,7 +564,10 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
         ) : (
           <div
             className="flex items-center gap-2 group cursor-pointer flex-1 min-w-0"
-            onClick={handleStartEditProjectName}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleStartEditProjectName()
+            }}
           >
             <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
               {projectName || "Project"}
@@ -357,21 +579,30 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
         )}
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
-            onClick={handleNewFile}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleStartNewFile()
+            }}
             className="p-1.5 hover:bg-accent rounded transition-colors"
-            title="New File"
+            title={`New File in ${selectedFolder || '(root)'}`}
           >
             <FilePlusIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
           </button>
           <button
-            onClick={handleNewFolder}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleStartNewFolder()
+            }}
             className="p-1.5 hover:bg-accent rounded transition-colors"
-            title="New Folder"
+            title={`New Folder in ${selectedFolder || '(root)'}`}
           >
             <FolderPlusIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
           </button>
           <button
-            onClick={refreshFiles}
+            onClick={(e) => {
+              e.stopPropagation()
+              refreshFiles()
+            }}
             className="p-1.5 hover:bg-accent rounded transition-colors"
             title="Refresh"
           >
@@ -381,9 +612,83 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
       </div>
 
       {/* File tree */}
-      <div className="flex-1 overflow-auto px-4 pb-4">
-        <div className="space-y-0.5">
-          {tree.length === 0 ? (
+      <div
+        className="flex-1 overflow-auto px-4 pb-4"
+        onClick={(e) => {
+          // If clicking on the empty area (not on a file/folder item), clear selection
+          if (e.target === e.currentTarget) {
+            setSelectedFolder("")
+            handleCancelCreate()
+          }
+        }}
+      >
+        <div
+          className="space-y-0.5"
+          onClick={(e) => {
+            // Check if click is on the container itself (empty space)
+            if (e.target === e.currentTarget) {
+              setSelectedFolder("")
+              handleCancelCreate()
+            }
+          }}
+        >
+          {/* Show new item input at root level only if no folder selected */}
+          {(isCreatingFile || isCreatingFolder) && !selectedFolder && (
+            <div className="flex items-center px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border-l-2 border-cyan-500" style={{ paddingLeft: '10px' }}>
+              {isCreatingFolder ? (
+                <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
+              ) : (
+                <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
+              )}
+              <input
+                type="text"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    if (isCreatingFile) {
+                      handleConfirmCreateFile()
+                    } else {
+                      handleConfirmCreateFolder()
+                    }
+                  } else if (e.key === "Escape") {
+                    e.preventDefault()
+                    handleCancelCreate()
+                  }
+                }}
+                placeholder={isCreatingFile ? "file.tex" : "folder-name"}
+                className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mr-1"
+                autoFocus
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isCreatingFile) {
+                    handleConfirmCreateFile()
+                  } else {
+                    handleConfirmCreateFolder()
+                  }
+                }}
+                className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0 mr-0.5"
+                title="Create (Enter)"
+              >
+                <CheckIcon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleCancelCreate()
+                }}
+                className="p-1 hover:bg-red-500/10 text-red-600 dark:text-red-400 rounded transition-colors flex-shrink-0"
+                title="Cancel (Esc)"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {tree.length === 0 && !isCreatingFile && !isCreatingFolder ? (
             <p className="text-sm text-muted-foreground py-2">No files</p>
           ) : (
             renderTree(tree)

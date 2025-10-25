@@ -73,8 +73,8 @@ export default function WelcomePage() {
           min_interval_ms: 600,
         },
       })
-      // Navigate to the new route format: /project/:papername
-      navigate(`/project/${encodeURIComponent(projectName)}`)
+      // Navigate to the new route format: /easypaper/project/:name
+      navigate(`/easypaper/project/${encodeURIComponent(projectName)}`)
     } catch (error) {
       console.error("Failed to open project:", error)
     }
@@ -183,7 +183,7 @@ export default function WelcomePage() {
 
       {/* Settings Button */}
       <button
-        onClick={() => navigate("/settings")}
+        onClick={() => navigate("/easypaper/settings")}
         className="absolute top-8 right-8 p-2 rounded-lg hover:bg-accent transition-colors"
         title="Settings"
       >

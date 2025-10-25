@@ -1,14 +1,13 @@
 import { useEditorStore } from "@/store"
-import { PlayIcon, RefreshCwIcon, AlertCircleIcon, CheckCircleIcon } from "lucide-react"
+import { AlertCircleIcon, CheckCircleIcon } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb"
 
 interface BuildPanelProps {
-  onCompile: () => void
   onClean?: () => void
 }
 
-export function BuildPanel({ onCompile, onClean }: BuildPanelProps) {
-  const { isBuilding, lastBuildResult, previewMode, setPreviewMode } = useEditorStore()
+export function BuildPanel({ onClean }: BuildPanelProps) {
+  const { lastBuildResult, previewMode, setPreviewMode } = useEditorStore()
   return (
     <div className="top-0 build-panel border-b border-border bg-card px-6 py-3 flex items-center gap-3 shadow-sm">
       {/* Breadcrumb Navigation */}
@@ -51,7 +50,7 @@ export function BuildPanel({ onCompile, onClean }: BuildPanelProps) {
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           }`}
         >
-          Live
+          Markdown
         </button>
         <button
           onClick={() => setPreviewMode("pdf")}
