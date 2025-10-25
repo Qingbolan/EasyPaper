@@ -1,0 +1,11 @@
+# Vite
+app/dist
+app/node_modules
+app/.vite
+
+# Tauri
+app/src-tauri/target
+app/src-tauri/Cargo.lock
+
+# macOS
+.DS_Store
