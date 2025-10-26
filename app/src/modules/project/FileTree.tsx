@@ -406,9 +406,9 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
           `}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
-          {/* Expand/Collapse indicator - folders show arrow, files show dot */}
+          {/* Expand/Collapse indicator - folders with children show arrow, others show dot */}
           <div className="w-4 h-4 mr-0.5 flex items-center justify-center flex-shrink-0">
-            {file.is_dir ? (
+            {file.is_dir && hasChildren ? (
               <svg
                 className={`w-2.5 h-2.5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
                 fill="currentColor"

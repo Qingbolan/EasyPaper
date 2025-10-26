@@ -47,7 +47,7 @@ export function AppSidebar() {
       {/* Logo */}
       <div
         className={cn(
-          "flex h-16 items-center border-b border-sidebar-border transition-all",
+          "flex h-14 items-center border-b border-sidebar-border transition-all",
           collapsed ? "justify-center px-2 cursor-pointer hover:bg-sidebar-accent" : "gap-3 px-6"
         )}
         onClick={collapsed ? toggle : undefined}
@@ -93,12 +93,12 @@ export function AppSidebar() {
       </nav>
 
       {/* Theme Toggle */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="p-4">
         <ThemeToggle collapsed={collapsed} />
       </div>
 
       {/* Language Toggle */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="p-4">
         <button
           onClick={toggleLocale}
           title={collapsed ? (locale === "en" ? "中文" : "English") : undefined}

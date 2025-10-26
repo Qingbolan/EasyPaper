@@ -73,7 +73,7 @@ function MonitorIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
