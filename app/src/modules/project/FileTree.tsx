@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useProjectStore, useEditorStore } from "@/store"
 import { FileInfo, fileDelete, fileRename, createDir, fileWrite, fileList } from "@/ipc"
-import { FileIcon, FolderIcon, FolderOpenIcon, FilePlusIcon, FolderPlusIcon, RefreshCwIcon, Trash2Icon, Edit2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react"
+import { FileIcon, FolderIcon, FolderOpenIcon, FilePlusIcon, FolderPlusIcon, RefreshCwIcon, Trash2Icon, Edit2Icon, PencilIcon, CheckIcon, XIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
 import { Dropdown } from "antd"
 import type { MenuProps } from "antd"
 
@@ -395,27 +395,46 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
             }
           }}
           className={`
-            flex items-center px-2.5 py-1.5 rounded-lg
-            transition-all
+            group flex items-center px-2 py-1.5 rounded-md
+            transition-all duration-200
             cursor-pointer
             ${
               isActive || isFolderSelected
-                ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-l-2 border-cyan-500"
-                : "hover:bg-accent/50 text-foreground border-l-2 border-transparent"
+                ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+                : "hover:bg-accent/50 text-foreground"
             }
           `}
-          style={{ paddingLeft: `${depth * 16 + 10}px` }}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
-          {/* Folder icon - shows open/closed state */}
-          {file.is_dir ? (
-            isExpanded || isFolderSelected || isCreatingInThisFolder ? (
-              <FolderOpenIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
+          {/* Expand/Collapse indicator - folders show arrow, files show dot */}
+          <div className="w-4 h-4 mr-0.5 flex items-center justify-center flex-shrink-0">
+            {file.is_dir ? (
+              <svg
+                className={`w-2.5 h-2.5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                fill="currentColor"
+                viewBox="0 0 6 10"
+              >
+                <path d="M0.5 0.5L5.5 5L0.5 9.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             ) : (
-              <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
-            )
-          ) : (
-            <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
-          )}
+              <svg className="w-1.5 h-1.5 text-muted-foreground/50" fill="currentColor" viewBox="0 0 8 8">
+                <circle cx="4" cy="4" r="3" />
+              </svg>
+            )}
+          </div>
+
+          {/* Folder/File icon */}
+          <div className="w-4 h-4 mr-2 flex items-center justify-center flex-shrink-0">
+            {file.is_dir ? (
+              isExpanded || isFolderSelected || isCreatingInThisFolder ? (
+                <FolderOpenIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              ) : (
+                <FolderIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              )
+            ) : (
+              <FileIcon className="w-4 h-4 text-muted-foreground" />
+            )}
+          </div>
 
           {isRenaming ? (
             <input
@@ -430,12 +449,12 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
                 }
               }}
               onBlur={() => handleRename(path)}
-              className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
               autoFocus
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="text-sm truncate font-medium">{file.name}</span>
+            <span className="text-sm truncate font-medium flex-1">{file.name}</span>
           )}
         </div>
       )
@@ -452,14 +471,31 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
               {/* New item input - show when creating in this folder */}
               {(isCreatingFile || isCreatingFolder) && selectedFolder === path && (
                 <div
-                  className="flex items-center px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border-l-2 border-cyan-500"
-                  style={{ paddingLeft: `${(depth + 1) * 16 + 10}px` }}
+                  className="flex items-center px-2 py-1.5 rounded-md bg-cyan-500/10"
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
                 >
-                  {isCreatingFolder ? (
-                    <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
-                  ) : (
-                    <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
-                  )}
+                  <div className="w-4 h-4 mr-0.5 flex items-center justify-center flex-shrink-0">
+                    {isCreatingFolder ? (
+                      <svg
+                        className="w-2.5 h-2.5 text-muted-foreground/50"
+                        fill="currentColor"
+                        viewBox="0 0 6 10"
+                      >
+                        <path d="M0.5 0.5L5.5 5L0.5 9.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-1.5 h-1.5 text-muted-foreground/50" fill="currentColor" viewBox="0 0 8 8">
+                        <circle cx="4" cy="4" r="3" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="w-4 h-4 mr-2 flex items-center justify-center flex-shrink-0">
+                    {isCreatingFolder ? (
+                      <FolderIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                    ) : (
+                      <FileIcon className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={newItemName}
@@ -478,7 +514,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
                       }
                     }}
                     placeholder={isCreatingFile ? "file.tex" : "folder-name"}
-                    className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mr-1"
+                    className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -491,7 +527,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
                         handleConfirmCreateFolder()
                       }
                     }}
-                    className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0 mr-0.5"
+                    className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0"
                     title="Create (Enter)"
                   >
                     <CheckIcon className="w-3.5 h-3.5" />
@@ -521,10 +557,10 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
   const tree = buildTree(files)
 
   return (
-    <div className="file-tree h-full flex flex-col bg-card">
+    <div className="file-tree h-full flex flex-col">
       {/* Header with action buttons */}
       <div
-        className="flex items-center justify-between px-4 pt-4 pb-2 gap-2"
+        className="flex items-center justify-between px-3 py-3 gap-2 border-b border-border/50"
         onClick={(e) => e.stopPropagation()}
       >
         {isEditingProjectName ? (
@@ -563,57 +599,57 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
           </div>
         ) : (
           <div
-            className="flex items-center gap-2 group cursor-pointer flex-1 min-w-0"
+            className="flex items-center gap-1.5 group cursor-pointer flex-1 min-w-0"
             onClick={(e) => {
               e.stopPropagation()
               handleStartEditProjectName()
             }}
           >
-            <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
               {projectName || "Project"}
             </h3>
             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <PencilIcon className="w-3.5 h-3.5 text-muted-foreground" />
+              <PencilIcon className="w-3 h-3 text-muted-foreground" />
             </div>
           </div>
         )}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             onClick={(e) => {
               e.stopPropagation()
               handleStartNewFile()
             }}
-            className="p-1.5 hover:bg-accent rounded transition-colors"
+            className="p-1.5 hover:bg-accent/50 rounded-md transition-all duration-200 group"
             title={`New File in ${selectedFolder || '(root)'}`}
           >
-            <FilePlusIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+            <FilePlusIcon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground group-hover:scale-110 transition-all" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation()
               handleStartNewFolder()
             }}
-            className="p-1.5 hover:bg-accent rounded transition-colors"
+            className="p-1.5 hover:bg-accent/50 rounded-md transition-all duration-200 group"
             title={`New Folder in ${selectedFolder || '(root)'}`}
           >
-            <FolderPlusIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+            <FolderPlusIcon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground group-hover:scale-110 transition-all" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation()
               refreshFiles()
             }}
-            className="p-1.5 hover:bg-accent rounded transition-colors"
+            className="p-1.5 hover:bg-accent/50 rounded-md transition-all duration-200 group"
             title="Refresh"
           >
-            <RefreshCwIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+            <RefreshCwIcon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground group-hover:scale-110 transition-all" />
           </button>
         </div>
       </div>
 
       {/* File tree */}
       <div
-        className="flex-1 overflow-auto px-4 pb-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2"
         onClick={(e) => {
           // If clicking on the empty area (not on a file/folder item), clear selection
           if (e.target === e.currentTarget) {
@@ -634,12 +670,29 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
         >
           {/* Show new item input at root level only if no folder selected */}
           {(isCreatingFile || isCreatingFolder) && !selectedFolder && (
-            <div className="flex items-center px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border-l-2 border-cyan-500" style={{ paddingLeft: '10px' }}>
-              {isCreatingFolder ? (
-                <FolderIcon className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mr-1.5" />
-              ) : (
-                <FileIcon className="w-4 h-4 flex-shrink-0 mr-1.5" />
-              )}
+            <div className="flex items-center px-2 py-1.5 rounded-md bg-cyan-500/10" style={{ paddingLeft: '8px' }}>
+              <div className="w-4 h-4 mr-0.5 flex items-center justify-center flex-shrink-0">
+                {isCreatingFolder ? (
+                  <svg
+                    className="w-2.5 h-2.5 text-muted-foreground/50"
+                    fill="currentColor"
+                    viewBox="0 0 6 10"
+                  >
+                    <path d="M0.5 0.5L5.5 5L0.5 9.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ) : (
+                  <svg className="w-1.5 h-1.5 text-muted-foreground/50" fill="currentColor" viewBox="0 0 8 8">
+                    <circle cx="4" cy="4" r="3" />
+                  </svg>
+                )}
+              </div>
+              <div className="w-4 h-4 mr-2 flex items-center justify-center flex-shrink-0">
+                {isCreatingFolder ? (
+                  <FolderIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                ) : (
+                  <FileIcon className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
               <input
                 type="text"
                 value={newItemName}
@@ -658,7 +711,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
                   }
                 }}
                 placeholder={isCreatingFile ? "file.tex" : "folder-name"}
-                className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mr-1"
+                className="flex-1 text-sm font-medium text-foreground bg-background border border-cyan-500 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                 autoFocus
               />
               <button
@@ -670,7 +723,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
                     handleConfirmCreateFolder()
                   }
                 }}
-                className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0 mr-0.5"
+                className="p-1 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded transition-colors flex-shrink-0"
                 title="Create (Enter)"
               >
                 <CheckIcon className="w-3.5 h-3.5" />
@@ -689,7 +742,11 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
           )}
 
           {tree.length === 0 && !isCreatingFile && !isCreatingFolder ? (
-            <p className="text-sm text-muted-foreground py-2">No files</p>
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <FolderIcon className="w-12 h-12 mb-3 opacity-20" />
+              <p className="text-sm font-medium">No files</p>
+              <p className="text-xs mt-1 opacity-70">Click + to create files or folders</p>
+            </div>
           ) : (
             renderTree(tree)
           )}

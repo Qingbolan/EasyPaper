@@ -152,7 +152,7 @@ export function MonacoEditor({ value, onChange, onSave, fileName }: MonacoEditor
   return (
     <div className="flex flex-col h-full">
       {/* Editor Status Bar */}
-      <div className="flex items-center justify-between px-4 h-11 border-b border-border bg-card text-sm">
+      <div className="flex items-center justify-between px-4 h-10 border-b border-border bg-card text-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <FileTextIcon className="w-4 h-4 text-muted-foreground" />

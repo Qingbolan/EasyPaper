@@ -11,7 +11,7 @@ interface BuildPanelProps {
 export function BuildPanel({ onClean, lastCompiledTime, savedFilesCount }: BuildPanelProps) {
   const { lastBuildResult, previewMode, setPreviewMode } = useEditorStore()
   return (
-    <div className="top-0 build-panel border-b border-border bg-card px-4 h-11 flex items-center gap-3 shadow-sm">
+    <div className="top-0 build-panel border-b border-border bg-card px-4 h-14 flex items-center gap-3 shadow-sm">
       {/* Breadcrumb Navigation */}
       <div className="flex-shrink-0">
         <BreadcrumbNav />
