@@ -3,7 +3,7 @@ import type { ApiResponse, FileInfo } from "./types"
 
 export async function fileRead(path: string): Promise<string> {
   const response = await invoke<ApiResponse<string>>("file_read", { path })
-  if (!response.ok || !response.data) {
+  if (!response.ok || response.data === undefined || response.data === null) {
     throw new Error(response.error || "Failed to read file")
   }
   return response.data
@@ -32,7 +32,7 @@ export async function fileList(
     dir,
     recursive,
   })
-  if (!response.ok || !response.data) {
+  if (!response.ok || response.data === undefined || response.data === null) {
     throw new Error(response.error || "Failed to list files")
   }
   return response.data
@@ -63,7 +63,7 @@ export async function fileExists(path: string): Promise<boolean> {
   if (!response.ok) {
     return false
   }
-  return response.data || false
+  return response.data ?? false
 }
 
 export async function createDir(path: string): Promise<void> {

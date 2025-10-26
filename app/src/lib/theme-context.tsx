@@ -42,6 +42,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Use View Transition API for smooth switching (if browser supports it)
     const supportsViewTransitions = 'startViewTransition' in document
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const isDocumentVisible = document.visibilityState === 'visible'
 
     const applyTheme = () => {
       root.classList.remove("light", "dark")
@@ -49,7 +50,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setResolvedTheme(effectiveTheme)
     }
 
-    if (supportsViewTransitions && !prefersReducedMotion) {
+    if (supportsViewTransitions && !prefersReducedMotion && isDocumentVisible) {
       // Skip if a transition is already in progress
       if (isTransitioningRef.current) {
         // Just apply theme directly if already transitioning
@@ -69,9 +70,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           isTransitioningRef.current = false
         })
         .catch((e: any) => {
-          // Silently handle AbortError when transitions overlap
+          // Silently handle AbortError and InvalidStateError
           isTransitioningRef.current = false
-          if (e.name !== 'AbortError') {
+          if (e.name !== 'AbortError' && e.name !== 'InvalidStateError') {
             console.error('View transition error:', e)
           }
         })

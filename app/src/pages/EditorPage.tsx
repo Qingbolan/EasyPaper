@@ -72,24 +72,18 @@ export default function EditorPage() {
   const handleFileSelect = async (file: FileInfo) => {
     if (file.is_dir) return
 
-    // Only allow opening text files
-    const textExtensions = ['.tex', '.bib', '.txt', '.md', '.sty', '.cls', '.log', '.aux']
-    const hasTextExtension = textExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
-
-    if (!hasTextExtension) {
-      console.warn("Cannot open binary file in editor:", file.name)
-      return
-    }
-
     try {
       const fullPath = `${projectDir}/${file.path}`
-      console.log("Reading file:", fullPath)
       const content = await fileRead(fullPath)
       openFile(fullPath, content)
       setEditorContent(content)
     } catch (error) {
-      console.error("Failed to read file:", error)
-      alert(`Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
+      console.error("Failed to read file:", file.name, error)
+      // Silently skip binary files
+      const isBinaryFile = /\.(pdf|png|jpg|jpeg|gif|bmp|ico|ttf|woff|woff2|eot|zip|tar|gz)$/i.test(file.name)
+      if (isBinaryFile) {
+        console.warn("Skipping binary file:", file.name)
+      }
     }
   }
 

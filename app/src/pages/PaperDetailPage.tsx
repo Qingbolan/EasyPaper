@@ -7,7 +7,6 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
-  ArrowLeft,
   FileText,
   Calendar,
   AlertTriangle,
@@ -75,11 +74,6 @@ export default function PaperDetailPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Back Button */}
-      <Button variant="ghost" onClick={() => navigate('/papers')} className="mb-4">
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        {t('paperDetail.backToPapers')}
-      </Button>
 
       {/* Paper Header */}
       <Card

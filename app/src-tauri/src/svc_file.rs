@@ -38,9 +38,19 @@ impl<T> ApiResponse<T> {
 
 #[tauri::command]
 pub fn file_read(path: String) -> ApiResponse<String> {
+    // Check if file exists first
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
+        return ApiResponse::error(format!("File does not exist: {}", path));
+    }
+
+    if !file_path.is_file() {
+        return ApiResponse::error(format!("Path is not a file: {}", path));
+    }
+
     match fs::read_to_string(&path) {
         Ok(content) => ApiResponse::success(content),
-        Err(e) => ApiResponse::error(format!("Failed to read file: {}", e)),
+        Err(e) => ApiResponse::error(format!("Failed to read file '{}': {} (kind: {:?})", path, e, e.kind())),
     }
 }
 

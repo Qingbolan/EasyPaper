@@ -49,11 +49,10 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
   // Note: we depend on pdfVersion so that when a build finishes and the
   // PDF path stays the same, we still reload the updated bytes from disk.
   useEffect(() => {
+    let currentUrl: string | null = null
+    let isCancelled = false
+
     if (!pdfPath) {
-      // Revoke previous URL to avoid memory leaks
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl)
-      }
       setPdfUrl(null)
       setError(null)
       setNumPages(0)
@@ -65,37 +64,54 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
       try {
         console.log(`Loading PDF (version ${pdfVersion}):`, pdfPath)
 
-        // Revoke previous URL to avoid memory leaks
-        if (pdfUrl) {
-          URL.revokeObjectURL(pdfUrl)
-        }
-
         setError(null)
 
         const { readFile } = await import("@tauri-apps/plugin-fs")
         const data = await readFile(pdfPath)
+
+        if (isCancelled) {
+          console.log("PDF load cancelled")
+          return
+        }
 
         // Create a Blob from the data
         const blob = new Blob([data], { type: 'application/pdf' })
 
         // Create an object URL for the blob
         const url = URL.createObjectURL(blob)
+        currentUrl = url
 
-        setPdfUrl(url)
-        console.log("PDF loaded successfully, version:", pdfVersion)
+        if (!isCancelled) {
+          setPdfUrl((prevUrl) => {
+            // Revoke previous URL before setting new one
+            if (prevUrl) {
+              URL.revokeObjectURL(prevUrl)
+            }
+            return url
+          })
+          console.log("PDF loaded successfully, version:", pdfVersion)
+        } else {
+          // If cancelled after creating URL, revoke it immediately
+          URL.revokeObjectURL(url)
+        }
       } catch (err: any) {
-        console.error("Error loading PDF:", err)
-        setError(`Failed to load PDF: ${err.message || err}`)
-        setPdfUrl(null)
+        if (!isCancelled) {
+          console.error("Error loading PDF:", err)
+          setError(`Failed to load PDF: ${err.message || err}`)
+          setPdfUrl(null)
+        }
       }
     }
 
     loadPDF()
 
-    // Cleanup: revoke URL when component unmounts
+    // Cleanup: cancel and revoke URL when effect re-runs or component unmounts
     return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl)
+      isCancelled = true
+      if (currentUrl) {
+        setTimeout(() => {
+          URL.revokeObjectURL(currentUrl!)
+        }, 100)
       }
     }
   }, [pdfPath, pdfVersion])

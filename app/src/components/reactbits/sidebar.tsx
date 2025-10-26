@@ -87,50 +87,9 @@ export function RBSidebar({ children, className }: { children: React.ReactNode; 
       }}
     >
       {children}
-      <RBSidebarToggleFloating />
     </aside>
   )
 }
-
-export function RBSidebarToggleFloating() {
-  const { collapsed, toggle } = useRBSidebar()
-
-  const handleClick = () => {
-    console.log('🔘 Sidebar toggle button clicked!')
-    console.log('Current collapsed state:', collapsed)
-    toggle()
-    console.log('Toggle function called, new state should be:', !collapsed)
-  }
-
-  // Only show arrow in expanded state (for collapsing)
-  if (collapsed) {
-    return null
-  }
-
-  return (
-    <button
-      aria-label="Collapse sidebar"
-      onClick={handleClick}
-      style={{
-        position: "absolute",
-        top: 8,
-        right: 8,
-        width: 28,
-        height: 28,
-        borderRadius: 6,
-        border: "1px solid var(--sidebar-border)",
-        background: "color-mix(in oklab, var(--sidebar), transparent 10%)",
-        color: "var(--sidebar-foreground)",
-        zIndex: 100,
-        cursor: "pointer",
-      }}
-      className="fluent-transition hover:opacity-80"
-    >
-      ←
-    </button>
-  )
-}
-
 export function RBMainOffset({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div

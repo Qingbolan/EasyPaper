@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { GlobeIcon } from "@/components/icons"
-import { Home, FileEdit, Settings as SettingsIcon } from "lucide-react"
+import { Home, FileEdit, Settings as SettingsIcon, PanelLeftIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -47,23 +47,39 @@ export function AppSidebar() {
       {/* Logo */}
       <div
         className={cn(
-          "flex h-14 items-center border-b border-sidebar-border transition-all",
-          collapsed ? "justify-center px-2 cursor-pointer hover:bg-sidebar-accent" : "gap-3 px-6"
+          "flex h-14 items-center justify-between border-b border-sidebar-border transition-all",
+          collapsed ? "px-2 cursor-pointer hover:bg-sidebar-accent" : "px-4"
         )}
         onClick={collapsed ? toggle : undefined}
-        title={collapsed ? "Expand sidebar" : undefined}
       >
-        <div className="relative h-10 w-10 flex-shrink-0">
-          <img
-            src="/logo.png"
-            alt="EasyPaper Logo"
-            className="h-full w-full object-contain"
-          />
+        <div className={cn(
+          "flex items-center gap-3 flex-1 min-w-0",
+          collapsed && "justify-center"
+        )}>
+          <div className="relative h-8 w-8 flex-shrink-0">
+            <img
+              src="/logo.png"
+              alt="EasyPaper Logo"
+              className="h-full w-full object-contain"
+            />
+          </div>
+          {!collapsed && (
+            <span className="text-lg font-semibold whitespace-nowrap overflow-hidden">
+              EasyPaper
+            </span>
+          )}
         </div>
         {!collapsed && (
-          <span className="text-lg font-semibold whitespace-nowrap overflow-hidden">
-            EasyPaper
-          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              toggle()
+            }}
+            className="p-1.5 rounded-md hover:bg-sidebar-accent transition-colors flex-shrink-0"
+            title="Collapse sidebar"
+          >
+            <PanelLeftIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
         )}
       </div>
 

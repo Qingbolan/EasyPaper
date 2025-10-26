@@ -1,12 +1,10 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { useProjectStore } from "@/store"
 import { open } from "@tauri-apps/plugin-dialog"
-import { ArrowLeftIcon, FolderIcon, CheckIcon } from "lucide-react"
+import { FolderIcon, CheckIcon } from "lucide-react"
 import { getDefaultProjectLocation } from "@/lib/paths"
 
 export default function SettingsPage() {
-  const navigate = useNavigate()
   const { defaultProjectLocation, setDefaultProjectLocation } = useProjectStore()
   const [tempLocation, setTempLocation] = useState(defaultProjectLocation)
   const [isSaved, setIsSaved] = useState(false)
@@ -48,13 +46,7 @@ export default function SettingsPage() {
   return (
     <div className="h-full overflow-auto">
       {/* Header */}
-      <div className="border-b border-border bg-background px-6 py-4 flex items-center gap-4">
-        <button
-          onClick={() => navigate("/")}
-          className="p-2 rounded-lg hover:bg-accent transition-colors"
-        >
-          <ArrowLeftIcon className="w-5 h-5" />
-        </button>
+      <div className="border-b border-border bg-background px-6 py-4">
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 

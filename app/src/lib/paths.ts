@@ -16,7 +16,8 @@ export async function getDefaultProjectLocation(customLocation?: string): Promis
     // Try to get Documents directory
     const docsDir = await documentDir()
     if (docsDir) {
-      return `${docsDir}EasyPaper`
+      // Ensure proper path separator (docsDir usually ends with /)
+      return docsDir.endsWith('/') ? `${docsDir}EasyPaper` : `${docsDir}/EasyPaper`
     }
   } catch (e) {
     console.warn("Could not get documents directory, using fallback:", e)
@@ -26,7 +27,8 @@ export async function getDefaultProjectLocation(customLocation?: string): Promis
     // Fallback to home directory
     const home = await homeDir()
     if (home) {
-      return `${home}Documents/EasyPaper`
+      // Ensure proper path separator
+      return home.endsWith('/') ? `${home}Documents/EasyPaper` : `${home}/Documents/EasyPaper`
     }
   } catch (e) {
     console.warn("Could not get home directory, using fallback:", e)
