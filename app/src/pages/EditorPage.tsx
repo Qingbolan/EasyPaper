@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { Splitter } from "antd"
 import { useProjectStore, useEditorStore } from "@/store"
-import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo } from "@/ipc"
+import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo, synctexBackward } from "@/ipc"
 import { MonacoEditor } from "@/modules/editor/MonacoEditor"
 import { KaTeXPreview } from "@/modules/preview/KaTeXPreview"
 import { PDFViewer } from "@/modules/preview/PDFViewer"
@@ -31,6 +31,9 @@ export default function EditorPage() {
   const [editorContent, setEditorContent] = useState("")
   const [lastCompiledTime, setLastCompiledTime] = useState<string>("")
   const [unsavedChangesCount, setUnsavedChangesCount] = useState(0)
+  const monacoEditorRef = useRef<any>(null)
+  const [compiledContent, setCompiledContent] = useState<Map<string, string>>(new Map())
+  const [jumpToPdfPage, setJumpToPdfPage] = useState<number | undefined>(undefined)
 
   // Redirect if no project is open
   useEffect(() => {
@@ -204,6 +207,17 @@ export default function EditorPage() {
         incrementPdfVersion()
         console.log("PDF path set in store and version incremented")
 
+        // Save compiled content for diff comparison
+        const newCompiledContent = new Map<string, string>()
+        if (activeFile) {
+          newCompiledContent.set(activeFile, editorContent)
+        }
+        for (const [path, file] of openFiles.entries()) {
+          newCompiledContent.set(path, file.content)
+        }
+        setCompiledContent(newCompiledContent)
+        console.log("Saved compiled content snapshot for diff tracking")
+
         // Update last compiled time
         const now = new Date()
         const timeString = now.toLocaleTimeString('en-US', {
@@ -270,6 +284,67 @@ export default function EditorPage() {
     return parts[parts.length - 1]
   }
 
+  // Handle SyncTeX forward search - jump from PDF to source
+  const handleSyncTexJump = async (file: string, line: number) => {
+    console.log("SyncTeX jump requested:", { file, line })
+
+    try {
+      // Normalize the file path to match our project structure
+      // SyncTeX might return absolute or relative paths
+      const fullPath = file.startsWith('/') ? file : `${projectDir}/${file}`
+
+      // Open the file if it's not already active
+      if (fullPath !== activeFile) {
+        console.log("Opening file:", fullPath)
+        const content = await fileRead(fullPath)
+        openFile(fullPath, content)
+        setEditorContent(content)
+      }
+
+      // Jump to the line in Monaco Editor with highlight
+      if (monacoEditorRef.current) {
+        console.log("Jumping to line:", line)
+        // Scroll to line and set cursor position
+        monacoEditorRef.current.revealLineInCenter(line)
+        monacoEditorRef.current.setPosition({ lineNumber: line, column: 1 })
+        monacoEditorRef.current.focus()
+
+        // Add blue highlight decoration
+        if (monacoEditorRef.current.highlightLine) {
+          monacoEditorRef.current.highlightLine(line)
+        }
+      } else {
+        console.warn("Monaco editor not ready")
+      }
+    } catch (error) {
+      console.error("Failed to jump to source:", error)
+    }
+  }
+
+  // Handle Monaco editor ready
+  const handleEditorReady = (editor: any) => {
+    monacoEditorRef.current = editor
+    console.log("Monaco editor ready")
+  }
+
+  // Source -> PDF: request SyncTeX backward and jump PDF
+  const handleRequestSyncToPdf = async (line: number, column: number) => {
+    try {
+      if (!activeFile || !pdfPath) return
+      const result = await synctexBackward(activeFile, line, column, pdfPath)
+      if (result && typeof result.page === 'number') {
+        setJumpToPdfPage(result.page)
+        // Ensure PDF preview is visible
+        if (previewMode !== 'pdf') {
+          const { setPreviewMode } = useEditorStore.getState()
+          setPreviewMode('pdf')
+        }
+      }
+    } catch (e) {
+      console.error('SyncTeX backward failed:', e)
+    }
+  }
+
   // Auto-compile when switching to PDF preview mode
   useEffect(() => {
     const checkAndCompile = async () => {
@@ -330,6 +405,8 @@ export default function EditorPage() {
                 onCompile={handleCompile}
                 isCompiling={isBuilding}
                 buildResult={lastBuildResult}
+                onSyncTexClick={handleSyncTexJump}
+                jumpToPage={jumpToPdfPage}
               />
             )}
           </div>
@@ -364,6 +441,9 @@ export default function EditorPage() {
                       onChange={handleContentChange}
                       onSave={handleSaveAndCompile}
                       fileName={getFileName()}
+                      onEditorReady={handleEditorReady}
+                      originalContent={compiledContent.get(activeFile)}
+                      onRequestSyncToPdf={handleRequestSyncToPdf}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -387,6 +467,8 @@ export default function EditorPage() {
                         onCompile={handleCompile}
                         isCompiling={isBuilding}
                         buildResult={lastBuildResult}
+                        onSyncTexClick={handleSyncTexJump}
+                        jumpToPage={jumpToPdfPage}
                       />
                     )}
                   </div>

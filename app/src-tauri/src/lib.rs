@@ -3,10 +3,12 @@ mod project;
 mod svc_build;
 mod svc_file;
 mod svc_template;
+mod svc_synctex;
 
 use svc_build::{build_clean, build_compile};
 use svc_file::{create_dir, file_delete, file_exists, file_list, file_read, file_rename, file_write};
 use svc_template::{template_apply, template_get_content, template_list};
+use svc_synctex::{synctex_forward, synctex_backward};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,6 +32,9 @@ pub fn run() {
             template_list,
             template_apply,
             template_get_content,
+            // SyncTeX operations
+            synctex_forward,
+            synctex_backward,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -530,4 +530,84 @@
     transform: translateY(-2px);
     box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.3);
   }
+
+  /* Monaco Editor Diff Decorations */
+
+  /* Completely new line - full line highlight */
+  .diff-added-line {
+    background-color: rgba(34, 197, 94, 0.15) !important;
+    border-left: 3px solid rgba(34, 197, 94, 0.6) !important;
+  }
+
+  .dark .diff-added-line {
+    background-color: rgba(34, 197, 94, 0.12) !important;
+    border-left: 3px solid rgba(34, 197, 94, 0.5) !important;
+  }
+
+  /* Inline added content - precise highlighting */
+  .diff-added-inline {
+    background-color: rgba(34, 197, 94, 0.25) !important;
+    border-radius: 2px;
+    padding: 1px 0;
+  }
+
+  .dark .diff-added-inline {
+    background-color: rgba(34, 197, 94, 0.20) !important;
+  }
+
+  /* Glyph margin indicators */
+  .diff-added-glyph {
+    background-color: rgba(34, 197, 94, 0.6) !important;
+    width: 3px !important;
+    margin-left: 3px;
+  }
+
+  .diff-modified-glyph {
+    background-color: rgba(59, 130, 246, 0.5) !important;
+    width: 3px !important;
+    margin-left: 3px;
+  }
+
+  .diff-removed-glyph {
+    background-color: rgba(239, 68, 68, 0.6) !important;
+    width: 3px !important;
+    margin-left: 3px;
+  }
+
+  .diff-removed-glyph::after {
+    content: '−';
+    color: rgba(239, 68, 68, 0.9);
+    font-weight: bold;
+    font-size: 10px;
+  }
+
+  /* Monaco Editor SyncTeX Highlight */
+  .synctex-highlight-line {
+    background-color: rgba(59, 130, 246, 0.20) !important;
+    border: 2px solid rgba(59, 130, 246, 0.6) !important;
+    animation: synctex-pulse 0.5s ease-out;
+  }
+
+  .dark .synctex-highlight-line {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    border: 2px solid rgba(59, 130, 246, 0.5) !important;
+  }
+
+  .synctex-highlight-glyph {
+    background-color: rgba(59, 130, 246, 0.6) !important;
+    width: 4px !important;
+    margin-left: 2px;
+  }
+
+  @keyframes synctex-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+  }
 }

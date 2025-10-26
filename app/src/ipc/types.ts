@@ -63,3 +63,16 @@ export interface CompileConfig {
   outdir: string
   min_interval_ms: number
 }
+
+// SyncTeX types
+export interface SyncTexResult {
+  file: string
+  line: number
+  column: number
+}
+
+export interface SyncTexPdfPos {
+  page: number
+  x: number
+  y: number
+}

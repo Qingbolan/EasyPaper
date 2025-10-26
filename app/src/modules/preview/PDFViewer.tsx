@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "@/lib/theme-context"
 import { useEditorStore } from "@/store"
+import { synctexForward } from "@/ipc"
 import type { BuildResult } from "@/ipc"
 import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
@@ -27,9 +28,11 @@ interface PDFViewerProps {
   onCompile?: () => void
   isCompiling?: boolean
   buildResult?: BuildResult | null
+  onSyncTexClick?: (file: string, line: number) => void
+  jumpToPage?: number
 }
 
-export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, buildResult }: PDFViewerProps) {
+export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, buildResult, onSyncTexClick, jumpToPage }: PDFViewerProps) {
   const { resolvedTheme } = useTheme()
   const { layoutMode, setLayoutMode } = useEditorStore()
   const [numPages, setNumPages] = useState<number>(0)
@@ -41,6 +44,7 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
   const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const pageContainerRef = useRef<HTMLDivElement>(null)
+  const pageRef = useRef<HTMLCanvasElement>(null)
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const [containerHeight, setContainerHeight] = useState<number>(0)
   const [showBuildInfo, setShowBuildInfo] = useState<boolean>(false)
@@ -116,6 +120,19 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
     }
   }, [pdfPath, pdfVersion])
 
+  // Handle external page jump (source -> PDF)
+  useEffect(() => {
+    if (jumpToPage && Number.isFinite(jumpToPage)) {
+      setPageNumber(prev => {
+        // clamp to [1, numPages] when known
+        if (numPages > 0) {
+          return Math.min(Math.max(1, jumpToPage), numPages)
+        }
+        return jumpToPage
+      })
+    }
+  }, [jumpToPage, numPages])
+
   // Update container dimensions on resize
   useEffect(() => {
     const updateDimensions = () => {
@@ -189,6 +206,41 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
       }
     } catch (error) {
       console.error('Download failed:', error)
+    }
+  }
+
+  // Handle PDF click for SyncTeX forward search
+  const handlePageClick = async (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!pdfPath || !onSyncTexClick) return
+
+    try {
+      // Get click position relative to the page element
+      const target = event.currentTarget
+      const rect = target.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const y = event.clientY - rect.top
+
+      console.log('PDF clicked:', { page: pageNumber, x, y, pdfPath })
+
+      // Query SyncTeX for source location
+      const result = await synctexForward(pdfPath, pageNumber, x, y)
+      console.log('SyncTeX result:', result)
+
+      // Call callback to jump to source
+      onSyncTexClick(result.file, result.line)
+    } catch (error) {
+      // Check if it's a "not installed" error - only log once
+      const errorMsg = String(error)
+      if (errorMsg.includes('not installed')) {
+        // Only show this error once per session
+        if (!window.__synctexErrorShown) {
+          console.warn('SyncTeX is not installed. Install MacTeX or TeX Live to enable PDF-to-source navigation.')
+          window.__synctexErrorShown = true
+        }
+      } else {
+        console.error('SyncTeX forward search failed:', error)
+      }
+      // Silently fail - don't interrupt user
     }
   }
 
@@ -431,7 +483,10 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
                 </div>
               }
             >
-              <div className="bg-white shadow-2xl">
+              <div
+                className="bg-white shadow-2xl cursor-pointer"
+                onClick={handlePageClick}
+              >
                 <Page
                   pageNumber={pageNumber}
                   scale={autoFit ? undefined : scale}
