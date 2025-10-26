@@ -104,8 +104,9 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
   useEffect(() => {
     const updateDimensions = () => {
       if (pageContainerRef.current) {
-        setContainerWidth(pageContainerRef.current.clientWidth - 48) // padding
-        setContainerHeight(pageContainerRef.current.clientHeight - 48) // padding
+        // Subtract padding: py-6 (24px top + 24px bottom) + px-4 (16px left + 16px right)
+        setContainerWidth(pageContainerRef.current.clientWidth - 32) // px-4 = 16px * 2
+        setContainerHeight(pageContainerRef.current.clientHeight - 48) // py-6 = 24px * 2
       }
     }
 
@@ -309,12 +310,12 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
       {/* Main Content Area */}
       <div
         ref={pageContainerRef}
-        className="flex-1 overflow-auto p-6 min-h-0"
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
         {shouldShowBuildInfo ? (
           /* Build Information Display */
-          <div className="h-full flex items-start justify-center">
-            <div className="max-w-3xl w-full space-y-4 py-4">
+          <div className="h-full flex items-start justify-center py-6 px-4">
+            <div className="max-w-3xl w-full space-y-4">
               {!buildResult && !error ? (
                 <div className="text-center text-muted-foreground py-8">
                   <p>Compile to generate PDF preview</p>
@@ -403,7 +404,7 @@ export function PDFViewer({ pdfPath, pdfVersion = 0, onCompile, isCompiling, bui
           </div>
         ) : (
           /* PDF Display */
-          <div className="h-full flex justify-center items-center">
+          <div className="h-full flex justify-center items-start py-6 px-4">
             <Document
               file={pdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
