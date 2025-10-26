@@ -118,6 +118,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   const context = React.useContext(ThemeContext)
   if (!context) {
+    // In development, log warning but return default values to handle hot reload
+    if (process.env.NODE_ENV === 'development') {
+      console.warn("useTheme: ThemeProvider not found, using default theme")
+      return {
+        theme: "system" as Theme,
+        setTheme: () => {},
+        resolvedTheme: "light" as "light" | "dark"
+      }
+    }
     throw new Error("useTheme must be used within ThemeProvider")
   }
   return context

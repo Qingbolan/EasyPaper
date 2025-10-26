@@ -2,11 +2,11 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Splitter } from "antd"
 import { useProjectStore, useEditorStore } from "@/store"
-import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo, versionInit, versionSave, versionCommit } from "@/ipc"
+import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo } from "@/ipc"
 import { MonacoEditor } from "@/modules/editor/MonacoEditor"
 import { KaTeXPreview } from "@/modules/preview/KaTeXPreview"
 import { PDFViewer } from "@/modules/preview/PDFViewer"
-import { FileTree } from "@/modules/project/FileTree"
+import { SidebarTabs } from "@/modules/project/SidebarTabs"
 import { BuildPanel } from "@/modules/build/BuildPanel"
 
 export default function EditorPage() {
@@ -19,13 +19,18 @@ export default function EditorPage() {
     isBuilding,
     setBuilding,
     setBuildResult,
+    lastBuildResult,
     previewMode,
     pdfPath,
     setPdfPath,
+    pdfVersion,
+    incrementPdfVersion,
+    layoutMode,
   } = useEditorStore()
 
   const [editorContent, setEditorContent] = useState("")
   const [lastCompiledTime, setLastCompiledTime] = useState<string>("")
+  const [unsavedChangesCount, setUnsavedChangesCount] = useState(0)
 
   // Redirect if no project is open
   useEffect(() => {
@@ -46,19 +51,14 @@ export default function EditorPage() {
         console.log("Loaded files:", files)
         setFiles(files)
 
-        // Initialize version control for the project
-        try {
-          await versionInit(projectDir)
-          console.log("Version control initialized")
-        } catch (error) {
-          console.warn("Version control not available:", error)
-          // Version control is optional, continue without it
-        }
 
         // Auto-open main.tex if it exists
         const mainTex = files.find((f) => f.name === "main.tex")
         if (mainTex && !mainTex.is_dir) {
+          console.log("Auto-opening main.tex")
           await handleFileSelect(mainTex)
+        } else {
+          console.log("main.tex not found in project")
         }
       } catch (error) {
         console.error("Failed to load files:", error)
@@ -72,6 +72,15 @@ export default function EditorPage() {
   const handleFileSelect = async (file: FileInfo) => {
     if (file.is_dir) return
 
+    // Only allow opening text files
+    const textExtensions = ['.tex', '.bib', '.txt', '.md', '.sty', '.cls', '.log', '.aux']
+    const hasTextExtension = textExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+
+    if (!hasTextExtension) {
+      console.warn("Cannot open binary file in editor:", file.name)
+      return
+    }
+
     try {
       const fullPath = `${projectDir}/${file.path}`
       console.log("Reading file:", fullPath)
@@ -80,41 +89,54 @@ export default function EditorPage() {
       setEditorContent(content)
     } catch (error) {
       console.error("Failed to read file:", error)
+      alert(`Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   // Handle content change
   const handleContentChange = (value: string) => {
+    console.log("Content changed, new length:", value.length)
     setEditorContent(value)
     if (activeFile) {
+      console.log("Updating file content in store:", activeFile)
       updateFileContent(activeFile, value)
+      // Mark file as dirty when content changes
+      const { markFileDirty } = useEditorStore.getState()
+      markFileDirty(activeFile, true)
+      console.log("File marked as dirty")
     }
   }
 
   // Handle save
   const handleSave = async () => {
-    if (!activeFile || !projectDir) return
+    if (!activeFile || !projectDir) {
+      console.warn("Cannot save: activeFile or projectDir is missing")
+      return
+    }
 
     try {
+      console.log("=== Saving file ===")
+      console.log("File path:", activeFile)
+      console.log("Content length:", editorContent.length)
+
       // Write file to disk
       await fileWrite(activeFile, editorContent)
-      console.log("File saved:", activeFile)
-
-      // Create version snapshot
-      try {
-        const commitId = await versionSave(projectDir, activeFile, editorContent)
-        console.log("Version snapshot created:", commitId)
-      } catch (error) {
-        console.warn("Version snapshot failed (version control not available):", error)
-        // Continue even if version control fails
-      }
+      console.log("✓ File written to disk successfully:", activeFile)
 
       // Mark file as clean
       const { markFileDirty } = useEditorStore.getState()
       markFileDirty(activeFile, false)
+      console.log("✓ File marked as clean")
+      console.log("=== Save completed ===")
     } catch (error) {
-      console.error("Failed to save file:", error)
+      console.error("=== Save failed ===", error)
     }
+  }
+
+  // Handle save and compile (Cmd+S)
+  const handleSaveAndCompile = async () => {
+    await handleSave()
+    await handleCompile()
   }
 
   // Handle compile
@@ -129,20 +151,52 @@ export default function EditorPage() {
     setBuilding(true)
 
     try {
-      // Save all dirty files before compiling
+      let savedCount = 0
+
+      // First, save the current active file with latest editorContent
+      if (activeFile && editorContent !== undefined) {
+        console.log("=== Saving current active file ===")
+        console.log("File path:", activeFile)
+        console.log("Content length:", editorContent.length)
+        console.log("Content preview (first 200 chars):", editorContent.substring(0, 200))
+
+        await fileWrite(activeFile, editorContent)
+        console.log("✓ fileWrite completed")
+
+        // Verify the file was written by reading it back
+        try {
+          const verifyContent = await fileRead(activeFile)
+          console.log("✓ Verification read - Content length:", verifyContent.length)
+          if (verifyContent === editorContent) {
+            console.log("✓✓ VERIFIED: File content matches what we wrote!")
+          } else {
+            console.error("⚠️ WARNING: File content doesn't match!")
+            console.log("Expected length:", editorContent.length)
+            console.log("Actual length:", verifyContent.length)
+          }
+        } catch (verifyError) {
+          console.error("Failed to verify file write:", verifyError)
+        }
+
+        savedCount++
+      }
+
+      // Then save all other dirty files from the store
       const { openFiles } = useEditorStore.getState()
       for (const [path, file] of openFiles.entries()) {
+        // Skip the active file as we already saved it
+        if (path === activeFile) continue
+
         if (file.isDirty) {
           console.log("Saving dirty file:", path)
           await fileWrite(path, file.content)
+          console.log("✓ File saved:", path)
+          savedCount++
         }
       }
 
-      // Also save current file if it's been edited
-      if (activeFile) {
-        console.log("Saving active file:", activeFile)
-        await fileWrite(activeFile, editorContent)
-      }
+      console.log(`✓ Saved ${savedCount} file(s) before compilation`)
+      setUnsavedChangesCount(savedCount)
 
       console.log("Calling buildCompile...")
       const result = await buildCompile(projectDir)
@@ -153,7 +207,8 @@ export default function EditorPage() {
       if (result.success && result.pdf_path) {
         console.log("✅ Build successful! PDF path:", result.pdf_path)
         setPdfPath(result.pdf_path)
-        console.log("PDF path set in store")
+        incrementPdfVersion()
+        console.log("PDF path set in store and version incremented")
 
         // Update last compiled time
         const now = new Date()
@@ -163,41 +218,25 @@ export default function EditorPage() {
           hour12: true
         })
         setLastCompiledTime(timeString)
-
-        // Create version commit for successful build
-        try {
-          const commitId = await versionCommit(
-            projectDir,
-            `Build successful (${result.duration_ms}ms)`,
-            true
-          )
-          console.log("Version commit created:", commitId)
-        } catch (error) {
-          console.warn("Version commit failed (version control not available):", error)
-        }
       } else {
         console.log("❌ Build failed or no PDF generated")
         if (result.errors && result.errors.length > 0) {
           console.log("Errors:", result.errors)
         }
-
-        // Create version commit for failed build
-        try {
-          await versionCommit(
-            projectDir,
-            `Build failed (${result.errors?.length || 0} errors)`,
-            false
-          )
-        } catch (error) {
-          console.warn("Version commit failed (version control not available):", error)
-        }
       }
 
-      // Mark all saved files as clean
+      // Mark all files as clean after successful save
       const { markFileDirty } = useEditorStore.getState()
+      if (activeFile) {
+        markFileDirty(activeFile, false)
+      }
       for (const path of openFiles.keys()) {
         markFileDirty(path, false)
       }
+      console.log("All files marked as clean")
+
+      // Reset unsaved count after compile completes
+      setTimeout(() => setUnsavedChangesCount(0), 3000) // Clear after 3 seconds
     } catch (error) {
       console.error("=== Build error ===", error)
       setBuildResult({
@@ -239,10 +278,35 @@ export default function EditorPage() {
 
   // Auto-compile when switching to PDF preview mode
   useEffect(() => {
-    if (previewMode === "pdf" && !pdfPath && !isBuilding && projectDir) {
-      console.log("Auto-compiling for PDF preview...")
-      handleCompile()
+    const checkAndCompile = async () => {
+      if (previewMode !== "pdf" || isBuilding || !projectDir) {
+        return
+      }
+
+      // If no PDF path, definitely compile
+      if (!pdfPath) {
+        console.log("Auto-compiling for PDF preview (no PDF path)...")
+        handleCompile()
+        return
+      }
+
+      // Check if the PDF file actually exists
+      try {
+        const { exists } = await import("@tauri-apps/plugin-fs")
+        const pdfExists = await exists(pdfPath)
+        if (!pdfExists) {
+          console.log("Auto-compiling for PDF preview (PDF file not found)...")
+          handleCompile()
+        }
+      } catch (error) {
+        console.error("Error checking PDF existence:", error)
+        // If we can't check, try compiling anyway
+        console.log("Auto-compiling for PDF preview (error checking file)...")
+        handleCompile()
+      }
     }
+
+    checkAndCompile()
   }, [previewMode])
 
   if (!projectDir) {
@@ -252,63 +316,91 @@ export default function EditorPage() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Build Panel with Project Title */}
-      <BuildPanel onClean={handleClean} />
+      <BuildPanel
+        onClean={handleClean}
+        lastCompiledTime={lastCompiledTime}
+        savedFilesCount={unsavedChangesCount}
+      />
 
       {/* Main Content with Splitter */}
       <div className="flex-1 overflow-hidden min-h-0">
-        <Splitter
-          style={{ height: "100%", boxShadow: "none", backgroundColor: "transparent" }}
-        >
-          {/* Left: File Tree */}
-          <Splitter.Panel
-            defaultSize="20%"
-            min="15%"
-            max="30%"
-            style={{
-              overflow: "auto"
-            }}
+        {layoutMode === "preview-only" ? (
+          // Preview Only Mode - No sidebar, no editor
+          <div className="h-full bg-background">
+            {previewMode === "katex" ? (
+              <KaTeXPreview content={editorContent} />
+            ) : (
+              <PDFViewer
+                pdfPath={pdfPath}
+                pdfVersion={pdfVersion}
+                onCompile={handleCompile}
+                isCompiling={isBuilding}
+                buildResult={lastBuildResult}
+              />
+            )}
+          </div>
+        ) : (
+          // Split or Editor-only Mode
+          <Splitter
+            style={{ height: "100%", boxShadow: "none", backgroundColor: "transparent" }}
           >
-            <FileTree onFileSelect={handleFileSelect} />
-          </Splitter.Panel>
+            {/* Left: Sidebar Tabs (File Tree, Search, etc.) */}
+            <Splitter.Panel
+              defaultSize="20%"
+              min="15%"
+              max="30%"
+              style={{
+                overflow: "hidden"
+              }}
+            >
+              <SidebarTabs onFileSelect={handleFileSelect} />
+            </Splitter.Panel>
 
-          {/* Middle & Right */}
-          <Splitter.Panel>
-            <Splitter style={{ backgroundColor: "transparent" }}>
-              {/* Middle: Editor */}
-              <Splitter.Panel
-                defaultSize="50%"
-                min="30%"
-              >
-                {activeFile ? (
-                  <MonacoEditor
-                    value={editorContent}
-                    onChange={handleContentChange}
-                    onSave={handleSave}
-                    fileName={getFileName()}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <p>Select a file to edit</p>
-                  </div>
-                )}
-              </Splitter.Panel>
-
-              {/* Right: Preview */}
-              <Splitter.Panel
-                defaultSize="50%"
-                min="30%"
-              >
-                <div className="h-full bg-background">
-                  {previewMode === "katex" ? (
-                    <KaTeXPreview content={editorContent} />
+            {/* Middle & Right */}
+            <Splitter.Panel>
+              <Splitter style={{ backgroundColor: "transparent" }}>
+                {/* Middle: Editor */}
+                <Splitter.Panel
+                  defaultSize="50%"
+                  min="30%"
+                >
+                  {activeFile ? (
+                    <MonacoEditor
+                      value={editorContent}
+                      onChange={handleContentChange}
+                      onSave={handleSaveAndCompile}
+                      fileName={getFileName()}
+                    />
                   ) : (
-                    <PDFViewer pdfPath={pdfPath} />
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <p>Select a file to edit</p>
+                    </div>
                   )}
-                </div>
-              </Splitter.Panel>
-            </Splitter>
-          </Splitter.Panel>
-        </Splitter>
+                </Splitter.Panel>
+
+                {/* Right: Preview */}
+                <Splitter.Panel
+                  defaultSize="50%"
+                  min="30%"
+                >
+                  <div className="h-full bg-background">
+                    {previewMode === "katex" ? (
+                      <KaTeXPreview content={editorContent} />
+                    ) : (
+                      <PDFViewer
+                        pdfPath={pdfPath}
+                        pdfVersion={pdfVersion}
+                        onCompile={handleCompile}
+                        isCompiling={isBuilding}
+                        buildResult={lastBuildResult}
+                      />
+                    )}
+                  </div>
+                </Splitter.Panel>
+              </Splitter>
+            </Splitter.Panel>
+          </Splitter>
+        )}
       </div>
     </div>
   )

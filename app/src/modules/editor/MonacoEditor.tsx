@@ -94,12 +94,65 @@ export function MonacoEditor({ value, onChange, onSave, fileName }: MonacoEditor
     editor.onDidChangeModelContent(() => {
       setTotalLines(editor.getModel()?.getLineCount() || 0)
     })
+
+    // Add comment toggle keybinding (Cmd+/ or Ctrl+/)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Slash, () => {
+      const selection = editor.getSelection()
+      const model = editor.getModel()
+      if (!model || !selection) return
+
+      const startLine = selection.startLineNumber
+      const endLine = selection.endLineNumber
+
+      // Check if all selected lines are commented
+      let allCommented = true
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i).trim()
+        if (lineContent && !lineContent.startsWith('%')) {
+          allCommented = false
+          break
+        }
+      }
+
+      editor.executeEdits('toggle-comment', [{
+        range: new monaco.Range(startLine, 1, endLine + 1, 1),
+        text: null,
+        forceMoveMarkers: true
+      }])
+
+      // Toggle comments
+      const edits = []
+      for (let i = startLine; i <= endLine; i++) {
+        const line = model.getLineContent(i)
+        const firstNonWhitespace = line.search(/\S/)
+
+        if (allCommented) {
+          // Remove comment
+          const commentIndex = line.indexOf('%')
+          if (commentIndex !== -1) {
+            edits.push({
+              range: new monaco.Range(i, commentIndex + 1, i, commentIndex + 2),
+              text: ''
+            })
+          }
+        } else {
+          // Add comment
+          const insertPos = firstNonWhitespace === -1 ? 1 : firstNonWhitespace + 1
+          edits.push({
+            range: new monaco.Range(i, insertPos, i, insertPos),
+            text: '% '
+          })
+        }
+      }
+
+      editor.executeEdits('toggle-comment', edits)
+    })
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Editor Status Bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card text-sm">
+      <div className="flex items-center justify-between px-4 h-11 border-b border-border bg-card text-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <FileTextIcon className="w-4 h-4 text-muted-foreground" />

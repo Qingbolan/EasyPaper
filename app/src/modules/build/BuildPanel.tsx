@@ -4,12 +4,14 @@ import { BreadcrumbNav } from "@/components/breadcrumb"
 
 interface BuildPanelProps {
   onClean?: () => void
+  lastCompiledTime?: string
+  savedFilesCount?: number
 }
 
-export function BuildPanel({ onClean }: BuildPanelProps) {
+export function BuildPanel({ onClean, lastCompiledTime, savedFilesCount }: BuildPanelProps) {
   const { lastBuildResult, previewMode, setPreviewMode } = useEditorStore()
   return (
-    <div className="top-0 build-panel border-b border-border bg-card px-6 py-3 flex items-center gap-3 shadow-sm">
+    <div className="top-0 build-panel border-b border-border bg-card px-4 h-11 flex items-center gap-3 shadow-sm">
       {/* Breadcrumb Navigation */}
       <div className="flex-shrink-0">
         <BreadcrumbNav />
@@ -23,9 +25,17 @@ export function BuildPanel({ onClean }: BuildPanelProps) {
           {lastBuildResult.success ? (
             <>
               <CheckCircleIcon className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-              <span className="text-emerald-700 dark:text-emerald-300 font-medium">
-                Build successful ({lastBuildResult.duration_ms}ms)
-              </span>
+              <div className="flex flex-col">
+                <span className="text-emerald-700 dark:text-emerald-300 font-medium">
+                  Build successful ({lastBuildResult.duration_ms}ms)
+                </span>
+                {(lastCompiledTime || savedFilesCount !== undefined) && (
+                  <span className="text-xs text-muted-foreground">
+                    {lastCompiledTime && `Last compiled: ${lastCompiledTime}`}
+                    {savedFilesCount !== undefined && savedFilesCount > 0 && ` • ${savedFilesCount} file${savedFilesCount > 1 ? 's' : ''} saved`}
+                  </span>
+                )}
+              </div>
             </>
           ) : (
             <>

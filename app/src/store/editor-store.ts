@@ -24,6 +24,10 @@ interface EditorState {
   // Preview state
   previewMode: "katex" | "pdf"
   pdfPath: string | null
+  pdfVersion: number
+
+  // Layout state
+  layoutMode: "split" | "editor-only" | "preview-only"
 
   // Actions
   openFile: (path: string, content: string) => void
@@ -38,6 +42,8 @@ interface EditorState {
   setBuildResult: (result: BuildResult | null) => void
   setPreviewMode: (mode: "katex" | "pdf") => void
   setPdfPath: (path: string | null) => void
+  incrementPdfVersion: () => void
+  setLayoutMode: (mode: "split" | "editor-only" | "preview-only") => void
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({
@@ -51,6 +57,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   lastBuildResult: null,
   previewMode: "katex",
   pdfPath: null,
+  pdfVersion: 0,
+  layoutMode: "split",
 
   // Actions
   openFile: (path, content) =>
@@ -108,4 +116,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setPreviewMode: (mode) => set({ previewMode: mode }),
 
   setPdfPath: (path) => set({ pdfPath: path }),
+
+  incrementPdfVersion: () => set((state) => ({ pdfVersion: state.pdfVersion + 1 })),
+
+  setLayoutMode: (mode) => set({ layoutMode: mode }),
 }))
