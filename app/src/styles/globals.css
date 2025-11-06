@@ -581,6 +581,8 @@
     font-size: 10px;
   }
 
+  /* Note: deletions follow VSCode git gutter style (gutter marker only) */
+
   /* Monaco Editor SyncTeX Highlight */
   .synctex-highlight-line {
     background-color: rgba(59, 130, 246, 0.20) !important;

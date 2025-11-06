@@ -24,7 +24,6 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
   const [totalLines, setTotalLines] = useState(0)
   const diffDecorationsRef = useRef<string[]>([])
   const highlightDecorationRef = useRef<string[]>([])
-
   // Update theme based on system theme
   useEffect(() => {
     setMonacoTheme(theme === "dark" ? "vs-dark" : "vs")
@@ -32,8 +31,7 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
 
   // Calculate and apply diff decorations with character-level precision
   useEffect(() => {
-    if (!editorRef.current || !originalContent) {
-      // Clear decorations if no original content
+    if (!editorRef.current || originalContent === undefined || originalContent === null) {
       if (editorRef.current && diffDecorationsRef.current.length > 0) {
         diffDecorationsRef.current = editorRef.current.deltaDecorations(diffDecorationsRef.current, [])
       }
@@ -45,8 +43,6 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
     if (!model) return
 
     const decorations: any[] = []
-
-    // Use line-level diff to identify changed regions with accurate pairing
     const lineChanges = Diff.diffLines(originalContent, value)
 
     let origLineIdx = 0
@@ -61,80 +57,70 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
     for (let idx = 0; idx < lineChanges.length; idx++) {
       const change = lineChanges[idx]
 
-      // Case 1: modification block -> a removed chunk followed by an added chunk
+      // Modification block: removed followed by added
       if (change.removed && idx + 1 < lineChanges.length && lineChanges[idx + 1].added) {
         const removedLines = splitNoTrail(change.value)
         const addedLines = splitNoTrail(lineChanges[idx + 1].value)
-
         const pairCount = Math.min(removedLines.length, addedLines.length)
 
-        // Pair lines by order for char-level diff (precise added highlighting)
         for (let j = 0; j < pairCount; j++) {
           const origLine = removedLines[j]
           const newLine = addedLines[j]
           const lineNum = currLineIdx + j + 1
-
           if (lineNum > model.getLineCount()) continue
-          if (newLine.trim() === '') continue // don't mark empty lines
+          if (newLine.trim() === '') continue
 
           const charChanges = Diff.diffChars(origLine, newLine)
-          let charPos = 0 // position in new line
-
+          let charPos = 0
+          let sawAdded = false
           charChanges.forEach((c) => {
             if (c.added) {
               const startCol = charPos + 1
               const endCol = startCol + c.value.length
               decorations.push({
-                range: {
-                  startLineNumber: lineNum,
-                  startColumn: startCol,
-                  endLineNumber: lineNum,
-                  endColumn: endCol
-                },
-                options: {
-                  inlineClassName: 'diff-added-inline',
-                  overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 }
-                }
+                range: { startLineNumber: lineNum, startColumn: startCol, endLineNumber: lineNum, endColumn: endCol },
+                options: { inlineClassName: 'diff-added-inline', inlineClassNameAffectsLetterSpacing: true, overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 } }
               })
+              sawAdded = true
             }
             if (!c.removed) charPos += c.value.length
           })
 
-          // Add glyph for modified line
+          // Fallback: if diffChars found no added segments but lines differ, mark entire differing suffix
+          if (!sawAdded && origLine !== newLine) {
+            // Find first differing column
+            let k = 0
+            const minLen = Math.min(origLine.length, newLine.length)
+            while (k < minLen && origLine[k] === newLine[k]) k++
+            const startCol = k + 1
+            const endCol = newLine.length + 1
+            if (endCol > startCol) {
+              decorations.push({
+                range: { startLineNumber: lineNum, startColumn: startCol, endLineNumber: lineNum, endColumn: endCol },
+                options: { inlineClassName: 'diff-added-inline', inlineClassNameAffectsLetterSpacing: true, overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 } }
+              })
+            }
+          }
+
           decorations.push({
-            range: {
-              startLineNumber: lineNum,
-              startColumn: 1,
-              endLineNumber: lineNum,
-              endColumn: 1
-            },
+            range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: 1 },
             options: { glyphMarginClassName: 'diff-modified-glyph' }
           })
         }
 
-        // Extra added lines beyond pairs => brand-new lines
+        // leftover added lines
         for (let j = pairCount; j < addedLines.length; j++) {
           const lineNum = currLineIdx + j + 1
           const line = addedLines[j]
           if (line.trim() === '') continue
           if (lineNum > model.getLineCount()) continue
           decorations.push({
-            range: {
-              startLineNumber: lineNum,
-              startColumn: 1,
-              endLineNumber: lineNum,
-              endColumn: model.getLineMaxColumn(lineNum)
-            },
-            options: {
-              isWholeLine: true,
-              className: 'diff-added-line',
-              glyphMarginClassName: 'diff-added-glyph',
-              overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 }
-            }
+            range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: model.getLineMaxColumn(lineNum) },
+            options: { inlineClassName: 'diff-added-inline', inlineClassNameAffectsLetterSpacing: true, glyphMarginClassName: 'diff-added-glyph', overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 } }
           })
         }
 
-        // Extra removed lines beyond pairs => show deletion marker on next visible line
+        // leftover removed lines -> gutter-only marker at next visible line
         if (removedLines.length > pairCount) {
           const leftover = removedLines.slice(pairCount)
           const removedText = leftover.filter(l => l.trim() !== '').join('\n')
@@ -142,82 +128,56 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
           if (removedText && anchorLine <= model.getLineCount()) {
             decorations.push({
               range: { startLineNumber: anchorLine, startColumn: 1, endLineNumber: anchorLine, endColumn: 1 },
-              options: {
-                glyphMarginClassName: 'diff-removed-glyph',
-                glyphMarginHoverMessage: {
-                  value: `🗑️ ${leftover.length} line(s) deleted:\n${removedText.substring(0, 200)}${removedText.length > 200 ? '...' : ''}`
-                }
-              }
+              options: { glyphMarginClassName: 'diff-removed-glyph', glyphMarginHoverMessage: { value: `🗑️ ${leftover.length} line(s) deleted:\n${removedText.substring(0, 200)}${removedText.length > 200 ? '...' : ''}` } }
             })
           }
         }
 
-        // Advance indices and skip the paired added block
         origLineIdx += removedLines.length
         currLineIdx += addedLines.length
         idx++
         continue
       }
 
-      // Case 2: added-only block (brand new lines)
+      // Added-only block
       if (change.added) {
         const addedLines = splitNoTrail(change.value)
         for (let j = 0; j < addedLines.length; j++) {
           const line = addedLines[j]
           const lineNum = currLineIdx + 1
-          if (line.trim() === '') {
-            currLineIdx++
-            continue
-          }
-          if (lineNum > model.getLineCount()) {
-            currLineIdx++
-            continue
-          }
+          if (line.trim() === '') { currLineIdx++; continue }
+          if (lineNum > model.getLineCount()) { currLineIdx++; continue }
           decorations.push({
-            range: {
-              startLineNumber: lineNum,
-              startColumn: 1,
-              endLineNumber: lineNum,
-              endColumn: model.getLineMaxColumn(lineNum)
-            },
-            options: {
-              isWholeLine: true,
-              className: 'diff-added-line',
-              glyphMarginClassName: 'diff-added-glyph',
-              overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 }
-            }
+            range: { startLineNumber: lineNum, startColumn: 1, endLineNumber: lineNum, endColumn: model.getLineMaxColumn(lineNum) },
+            options: { inlineClassName: 'diff-added-inline', inlineClassNameAffectsLetterSpacing: true, glyphMarginClassName: 'diff-added-glyph', overviewRuler: { color: 'rgba(34, 197, 94, 0.6)', position: 2 } }
           })
           currLineIdx++
         }
         continue
       }
 
-      // Case 3: removed-only block (pure deletions)
+      // Removed-only block
       if (change.removed) {
         const removedLines = splitNoTrail(change.value)
         const removedText = removedLines.filter(l => l.trim() !== '').join('\n')
-        if (removedText && currLineIdx + 1 <= model.getLineCount()) {
+        const total = model.getLineCount()
+        const anchor = Math.min(Math.max(1, currLineIdx + 1), Math.max(1, total))
+        if (removedText) {
           decorations.push({
-            range: { startLineNumber: currLineIdx + 1, startColumn: 1, endLineNumber: currLineIdx + 1, endColumn: 1 },
-            options: {
-              glyphMarginClassName: 'diff-removed-glyph',
-              glyphMarginHoverMessage: {
-                value: `🗑️ ${removedLines.length} line(s) deleted:\n${removedText.substring(0, 200)}${removedText.length > 200 ? '...' : ''}`
-              }
-            }
+            range: { startLineNumber: anchor, startColumn: 1, endLineNumber: anchor, endColumn: 1 },
+            options: { glyphMarginClassName: 'diff-removed-glyph', glyphMarginHoverMessage: { value: `🗑️ ${removedLines.length} line(s) deleted:\n${removedText.substring(0, 200)}${removedText.length > 200 ? '...' : ''}` } }
           })
         }
         origLineIdx += removedLines.length
         continue
       }
 
-      // Case 4: unchanged block
+      // Unchanged
       const unchangedLines = splitNoTrail(change.value)
       origLineIdx += unchangedLines.length
       currLineIdx += unchangedLines.length
     }
 
-    // Apply decorations
     diffDecorationsRef.current = editor.deltaDecorations(diffDecorationsRef.current, decorations)
   }, [originalContent, value])
 
@@ -310,6 +270,7 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
       fontSize,
       wordWrap: wordWrap ? "on" : "off",
       lineNumbers: showLineNumbers ? "on" : "off",
+      glyphMargin: true,
       minimap: { enabled: true },
       scrollBeyondLastLine: false,
       automaticLayout: true,
@@ -390,14 +351,6 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
 
       editor.executeEdits('toggle-comment', edits)
     })
-
-    // Add Sync to PDF keybinding (Cmd/Ctrl+Alt+J)
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyJ, () => {
-      if (!onRequestSyncToPdf) return
-      const pos = editor.getPosition()
-      if (!pos) return
-      onRequestSyncToPdf(pos.lineNumber, pos.column)
-    })
   }
 
   return (
@@ -412,15 +365,6 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
           <div className="text-muted-foreground">
             Line {cursorPosition.line}, Col {cursorPosition.column}
           </div>
-          {onRequestSyncToPdf && (
-            <button
-              onClick={() => onRequestSyncToPdf(cursorPosition.line, cursorPosition.column)}
-              className="px-2 py-0.5 text-xs border border-border rounded hover:bg-accent hover:text-accent-foreground"
-              title="Sync to PDF (Cmd/Ctrl+Alt+J)"
-            >
-              Sync to PDF
-            </button>
-          )}
           <div className="text-muted-foreground">
             UTF-8
           </div>
@@ -443,6 +387,7 @@ export function MonacoEditor({ value, onChange, onSave, fileName, onEditorReady,
             fontSize,
             wordWrap: wordWrap ? "on" : "off",
             lineNumbers: showLineNumbers ? "on" : "off",
+            glyphMargin: true,
             minimap: { enabled: true },
             scrollBeyondLastLine: false,
             automaticLayout: true,

@@ -29,6 +29,9 @@ interface EditorState {
   // Layout state
   layoutMode: "split" | "editor-only" | "preview-only"
 
+  // Editor mode
+  editorMode: "normal" | "diff"
+
   // Actions
   openFile: (path: string, content: string) => void
   closeFile: (path: string) => void
@@ -44,6 +47,7 @@ interface EditorState {
   setPdfPath: (path: string | null) => void
   incrementPdfVersion: () => void
   setLayoutMode: (mode: "split" | "editor-only" | "preview-only") => void
+  setEditorMode: (mode: "normal" | "diff") => void
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({
@@ -59,6 +63,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
   pdfPath: null,
   pdfVersion: 0,
   layoutMode: "split",
+  editorMode: "normal",
 
   // Actions
   openFile: (path, content) =>
@@ -120,4 +125,6 @@ export const useEditorStore = create<EditorState>()((set) => ({
   incrementPdfVersion: () => set((state) => ({ pdfVersion: state.pdfVersion + 1 })),
 
   setLayoutMode: (mode) => set({ layoutMode: mode }),
+
+  setEditorMode: (mode) => set({ editorMode: mode }),
 }))

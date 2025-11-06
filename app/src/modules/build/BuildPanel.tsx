@@ -1,5 +1,5 @@
 import { useEditorStore } from "@/store"
-import { AlertCircleIcon, CheckCircleIcon } from "lucide-react"
+import { AlertCircleIcon, CheckCircleIcon, GitCompareIcon, FileEditIcon } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb"
 
 interface BuildPanelProps {
@@ -9,7 +9,7 @@ interface BuildPanelProps {
 }
 
 export function BuildPanel({ onClean, lastCompiledTime, savedFilesCount }: BuildPanelProps) {
-  const { lastBuildResult, previewMode, setPreviewMode } = useEditorStore()
+  const { lastBuildResult, previewMode, setPreviewMode, editorMode, setEditorMode } = useEditorStore()
   return (
     <div className="top-0 build-panel border-b border-border bg-card px-4 h-14 flex items-center gap-3 shadow-sm">
       {/* Breadcrumb Navigation */}
@@ -49,6 +49,32 @@ export function BuildPanel({ onClean, lastCompiledTime, savedFilesCount }: Build
       )}
 
       <div className="flex-1" />
+
+      {/* Editor Mode Toggle */}
+      <div className="flex items-center gap-1 bg-background border border-border rounded-lg p-1">
+        <button
+          onClick={() => setEditorMode("normal")}
+          className={`px-3 py-1.5 text-sm rounded-md transition-all font-medium flex items-center gap-1.5 ${
+            editorMode === "normal"
+              ? "bg-indigo-500 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          }`}
+        >
+          <FileEditIcon className="w-3.5 h-3.5" />
+          Normal
+        </button>
+        <button
+          onClick={() => setEditorMode("diff")}
+          className={`px-3 py-1.5 text-sm rounded-md transition-all font-medium flex items-center gap-1.5 ${
+            editorMode === "diff"
+              ? "bg-indigo-500 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          }`}
+        >
+          <GitCompareIcon className="w-3.5 h-3.5" />
+          Diff
+        </button>
+      </div>
 
       {/* Preview Mode Toggle */}
       <div className="flex items-center gap-1 bg-background border border-border rounded-lg p-1">

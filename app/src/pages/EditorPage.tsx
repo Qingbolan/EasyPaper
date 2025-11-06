@@ -4,6 +4,7 @@ import { Splitter } from "antd"
 import { useProjectStore, useEditorStore } from "@/store"
 import { fileRead, fileWrite, fileList, buildCompile, buildClean, FileInfo, synctexBackward } from "@/ipc"
 import { MonacoEditor } from "@/modules/editor/MonacoEditor"
+import { MonacoDiffEditor } from "@/modules/editor/MonacoDiffEditor"
 import { KaTeXPreview } from "@/modules/preview/KaTeXPreview"
 import { PDFViewer } from "@/modules/preview/PDFViewer"
 import { SidebarTabs } from "@/modules/project/SidebarTabs"
@@ -26,6 +27,8 @@ export default function EditorPage() {
     pdfVersion,
     incrementPdfVersion,
     layoutMode,
+    editorMode,
+    setEditorMode,
   } = useEditorStore()
 
   const [editorContent, setEditorContent] = useState("")
@@ -436,15 +439,26 @@ export default function EditorPage() {
                   min="30%"
                 >
                   {activeFile ? (
-                    <MonacoEditor
-                      value={editorContent}
-                      onChange={handleContentChange}
-                      onSave={handleSaveAndCompile}
-                      fileName={getFileName()}
-                      onEditorReady={handleEditorReady}
-                      originalContent={compiledContent.get(activeFile)}
-                      onRequestSyncToPdf={handleRequestSyncToPdf}
-                    />
+                    editorMode === "diff" ? (
+                      <MonacoDiffEditor
+                        originalValue={compiledContent.get(activeFile) || ""}
+                        modifiedValue={editorContent}
+                        onChange={handleContentChange}
+                        onSave={handleSaveAndCompile}
+                        fileName={getFileName()}
+                        onEditorReady={handleEditorReady}
+                      />
+                    ) : (
+                      <MonacoEditor
+                        value={editorContent}
+                        onChange={handleContentChange}
+                        onSave={handleSaveAndCompile}
+                        fileName={getFileName()}
+                        onEditorReady={handleEditorReady}
+                        originalContent={compiledContent.get(activeFile)}
+                        onRequestSyncToPdf={handleRequestSyncToPdf}
+                      />
+                    )
                   ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
                       <p>Select a file to edit</p>
